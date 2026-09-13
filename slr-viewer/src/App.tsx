@@ -107,9 +107,15 @@ export default function App() {
                 <button
                   onClick={() => setIsVisualizerOpen(true)}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg transition-all shadow-sm cursor-pointer shrink-0 hover:scale-105 active:scale-95"
+                  title="Open Scientific Visualization Studio"
                 >
                   <BarChart2 className="w-3.5 h-3.5" />
                   <span>Visualize Cohort</span>
+                  {Array.isArray(activeSession?.rawData?.saved_charts) && activeSession.rawData.saved_charts.length > 0 && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-white/20 text-white text-[10px] font-mono font-bold" title={`${activeSession.rawData.saved_charts.length} project charts saved`}>
+                      {activeSession.rawData.saved_charts.length}
+                    </span>
+                  )}
                 </button>
 
                 <button

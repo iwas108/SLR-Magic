@@ -323,3 +323,15 @@ export interface RollingBatchDetail {
   ledger: CalibrationLedgerEntry[];
 }
 
+export interface SavedChart {
+  id: string;
+  project_id: string;
+  title: string;
+  description?: string;
+  chart_type: string;
+  layout_mode: string;
+  config_payload: string;
+  created_at: string;
+  updated_at: string;
+}
+

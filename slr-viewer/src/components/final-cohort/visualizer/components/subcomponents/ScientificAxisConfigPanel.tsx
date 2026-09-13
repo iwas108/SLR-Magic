@@ -7,6 +7,9 @@ import {
   Grid, 
   ChevronRight, 
   ChevronDown,
+  ChevronUp,
+  RotateCcw,
+  Move,
   Sparkles,
   Palette,
   Eye,
@@ -17,7 +20,7 @@ import type { AxisLocation, AxisLabelFormat, AxisGridLineStyle, AxisFontWeight, 
 
 type AxisPanelSubTab = 'titles' | 'labels' | 'format' | 'grid';
 
-export function ScientificAxisConfigPanel() {
+export function ScientificAxisConfigPanel({ embedded = false }: { embedded?: boolean } = {}) {
   const { config, style } = useVisualizerContext();
   const {
     chartType,
@@ -69,6 +72,30 @@ export function ScientificAxisConfigPanel() {
     setAxisTitleGapX,
     axisTitleGapY = 38,
     setAxisTitleGapY,
+    axisTitleRotateX = 0,
+    setAxisTitleRotateX,
+    axisTitleRotateY = 90,
+    setAxisTitleRotateY,
+    axisTitleAlignX = 'center',
+    setAxisTitleAlignX,
+    axisTitleAlignY = 'center',
+    setAxisTitleAlignY,
+    axisTitleOffsetX_X = 0,
+    setAxisTitleOffsetX_X,
+    axisTitleOffsetY_X = 0,
+    setAxisTitleOffsetY_X,
+    axisTitleOffsetX_Y = 0,
+    setAxisTitleOffsetX_Y,
+    axisTitleOffsetY_Y = 0,
+    setAxisTitleOffsetY_Y,
+    axisTitlePrefixX = '',
+    setAxisTitlePrefixX,
+    axisTitleSuffixX = '',
+    setAxisTitleSuffixX,
+    axisTitlePrefixY = '',
+    setAxisTitlePrefixY,
+    axisTitleSuffixY = '',
+    setAxisTitleSuffixY,
     // Axis Tick Labels Customization
     showAxisLabelX = true,
     setShowAxisLabelX,
@@ -147,6 +174,8 @@ export function ScientificAxisConfigPanel() {
   } = config;
 
   const [subTab, setSubTab] = useState<AxisPanelSubTab>('titles');
+  const [showAdvancedTitleX, setShowAdvancedTitleX] = useState(false);
+  const [showAdvancedTitleY, setShowAdvancedTitleY] = useState(true);
 
   const isHorizontal = chartType === 'bar_horizontal' || chartType === 'horizontal_bar_scatter' || (chartType === 'clustered_bar' && barOrientation === 'horizontal') || (chartType === 'stacked_bar' && barOrientation === 'horizontal') || (chartType === 'boxplot' && boxplotOrientation === 'horizontal');
 
@@ -190,27 +219,10 @@ export function ScientificAxisConfigPanel() {
 
   const [isExpanded, setIsExpanded] = useState(true);
 
-  return (
-    <div className="p-3.5 bg-card border border-border rounded-2xl space-y-3.5 shadow-xs">
-      {/* Header with Title and Mode Badge */}
-      <div 
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center justify-between gap-2 flex-wrap pb-1 border-b border-border/50 cursor-pointer select-none"
-      >
-        <div className="flex items-center gap-2">
-          {isExpanded ? <ChevronDown className="w-4 h-4 text-primary" /> : <ChevronRight className="w-4 h-4 text-primary" />}
-          <SlidersHorizontal className="w-4 h-4 text-primary" />
-          <span className="text-xs font-black text-foreground">Scientific Axis & Publishing Gridlines</span>
-        </div>
-        <span className="text-[10px] uppercase font-bold text-muted-foreground bg-secondary px-2.5 py-0.5 rounded-full border border-border">
-          {isHorizontal ? 'Horizontal Value (X) × Cat (Y)' : 'Standard Vertical (X) × Value (Y)'}
-        </span>
-      </div>
-
-      {isExpanded && (
-        <>
-          {/* Sub-Tab Navigation Bar */}
-          <div className="flex items-center gap-1 bg-card/60 p-1 rounded-xl border border-border/60">
+  const innerContent = (
+    <>
+      {/* Sub-Tab Navigation Bar */}
+      <div className="flex items-center gap-1 bg-card/60 p-1 rounded-xl border border-border/60">
         <button
           type="button"
           onClick={() => setSubTab('titles')}
@@ -298,66 +310,261 @@ export function ScientificAxisConfigPanel() {
             />
 
             {showAxisTitleX && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-border/40 text-[11px]">
-                <div className="space-y-1">
-                  <label className="font-bold text-muted-foreground block">Font Size ({axisTitleFontSizeX}px)</label>
-                  <input
-                    type="range"
-                    min={8}
-                    max={32}
-                    value={axisTitleFontSizeX}
-                    onChange={(e) => setAxisTitleFontSizeX(Number(e.target.value))}
-                    className="w-full accent-primary"
-                  />
-                </div>
+              <div className="space-y-2 pt-1 border-t border-border/40 text-[11px]">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Font Size ({axisTitleFontSizeX}px)</label>
+                    <input
+                      type="range"
+                      min={8}
+                      max={32}
+                      value={axisTitleFontSizeX}
+                      onChange={(e) => setAxisTitleFontSizeX(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="font-bold text-muted-foreground block">Weight & Style</label>
-                  <div className="flex items-center gap-1">
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Weight & Style</label>
+                    <div className="flex items-center gap-1">
+                      <select
+                        value={axisTitleFontWeightX}
+                        onChange={(e) => setAxisTitleFontWeightX(e.target.value as AxisFontWeight)}
+                        className="flex-1 bg-card border border-border rounded-lg px-1.5 py-1 text-[10.5px] font-bold text-foreground"
+                      >
+                        <option value="normal">Normal</option>
+                        <option value="bold">Bold</option>
+                        <option value="600">Semi-Bold</option>
+                        <option value="700">Extra Bold</option>
+                      </select>
+                      <select
+                        value={axisTitleFontStyleX}
+                        onChange={(e) => setAxisTitleFontStyleX(e.target.value as AxisFontStyle)}
+                        className="w-16 bg-card border border-border rounded-lg px-1 py-1 text-[10.5px] font-bold text-foreground"
+                      >
+                        <option value="normal">Plain</option>
+                        <option value="italic">Italic</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Location</label>
                     <select
-                      value={axisTitleFontWeightX}
-                      onChange={(e) => setAxisTitleFontWeightX(e.target.value as AxisFontWeight)}
-                      className="flex-1 bg-card border border-border rounded-lg px-1.5 py-1 text-[10.5px] font-bold text-foreground"
+                      value={axisTitleLocationX}
+                      onChange={(e) => setAxisTitleLocationX(e.target.value as AxisLocation)}
+                      className="w-full bg-card border border-border rounded-lg px-1.5 py-1 text-[10.5px] font-bold text-foreground"
                     >
-                      <option value="normal">Normal</option>
-                      <option value="bold">Bold</option>
-                      <option value="600">Semi-Bold</option>
-                      <option value="700">Extra Bold</option>
+                      <option value="middle">Middle / Center</option>
+                      <option value="start">Start (Left)</option>
+                      <option value="end">End (Right)</option>
                     </select>
-                    <select
-                      value={axisTitleFontStyleX}
-                      onChange={(e) => setAxisTitleFontStyleX(e.target.value as AxisFontStyle)}
-                      className="w-16 bg-card border border-border rounded-lg px-1 py-1 text-[10.5px] font-bold text-foreground"
-                    >
-                      <option value="normal">Plain</option>
-                      <option value="italic">Italic</option>
-                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Gap ({axisTitleGapX}px)</label>
+                    <input
+                      type="range"
+                      min={5}
+                      max={240}
+                      value={axisTitleGapX}
+                      onChange={(e) => setAxisTitleGapX(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="font-bold text-muted-foreground block">Location</label>
-                  <select
-                    value={axisTitleLocationX}
-                    onChange={(e) => setAxisTitleLocationX(e.target.value as AxisLocation)}
-                    className="w-full bg-card border border-border rounded-lg px-1.5 py-1 text-[10.5px] font-bold text-foreground"
+                {/* Collapsible Extended Customization for X-Axis Title */}
+                <div className="pt-1.5 border-t border-border/30">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedTitleX(!showAdvancedTitleX)}
+                    className="w-full flex items-center justify-between px-2 py-1 bg-secondary/30 hover:bg-secondary/60 rounded-lg text-[10.5px] font-bold text-foreground transition-colors"
                   >
-                    <option value="middle">Middle / Center</option>
-                    <option value="start">Start (Left)</option>
-                    <option value="end">End (Right)</option>
-                  </select>
-                </div>
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3 text-primary" />
+                      <span>Extended Customization (Angle, Color, Offsets & Prefix)</span>
+                    </span>
+                    {showAdvancedTitleX ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
 
-                <div className="space-y-1">
-                  <label className="font-bold text-muted-foreground block">Gap ({axisTitleGapX}px)</label>
-                  <input
-                    type="range"
-                    min={5}
-                    max={240}
-                    value={axisTitleGapX}
-                    onChange={(e) => setAxisTitleGapX(Number(e.target.value))}
-                    className="w-full accent-primary"
-                  />
+                  {showAdvancedTitleX && (
+                    <div className="mt-2 p-2.5 bg-secondary/20 rounded-xl border border-border/40 space-y-2.5 animate-fadeIn">
+                      {/* Rotation Angle */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="font-bold text-muted-foreground flex items-center gap-1">
+                            <RotateCw className="w-3 h-3 text-primary" />
+                            <span>Rotation Angle ({axisTitleRotateX}°)</span>
+                          </label>
+                          <div className="flex items-center gap-1">
+                            {[
+                              { label: '0°', val: 0 },
+                              { label: '45°', val: 45 },
+                              { label: '90°', val: 90 },
+                              { label: '-45°', val: -45 }
+                            ].map((preset) => (
+                              <button
+                                key={preset.val}
+                                type="button"
+                                onClick={() => setAxisTitleRotateX(preset.val)}
+                                className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-colors ${
+                                  axisTitleRotateX === preset.val
+                                    ? 'bg-primary text-primary-foreground'
+                                    : 'bg-card text-muted-foreground hover:text-foreground border border-border'
+                                }`}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <input
+                          type="range"
+                          min={-180}
+                          max={180}
+                          step={5}
+                          value={axisTitleRotateX}
+                          onChange={(e) => setAxisTitleRotateX(Number(e.target.value))}
+                          className="w-full accent-primary"
+                        />
+                      </div>
+
+                      {/* Alignment & Dedicated Color */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-border/30">
+                        <div className="space-y-1">
+                          <label className="font-bold text-muted-foreground block">Title Alignment</label>
+                          <div className="grid grid-cols-3 gap-1">
+                            {[
+                              { id: 'left', label: 'Left' },
+                              { id: 'center', label: 'Center' },
+                              { id: 'right', label: 'Right' }
+                            ].map((a) => (
+                              <button
+                                key={a.id}
+                                type="button"
+                                onClick={() => setAxisTitleAlignX(a.id as any)}
+                                className={`py-1 rounded text-[10px] font-bold border transition-colors ${
+                                  axisTitleAlignX === a.id
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : 'bg-card text-muted-foreground hover:text-foreground border-border'
+                                }`}
+                              >
+                                {a.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <label className="font-bold text-muted-foreground flex items-center gap-1">
+                              <Palette className="w-3 h-3 text-primary" />
+                              <span>Custom Title Color</span>
+                            </label>
+                            {axisTitleColorX && (
+                              <button
+                                type="button"
+                                onClick={() => setAxisTitleColorX('')}
+                                className="text-[9.5px] text-muted-foreground hover:text-foreground underline"
+                              >
+                                Reset Theme
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="color"
+                              value={axisTitleColorX || '#333333'}
+                              onChange={(e) => setAxisTitleColorX(e.target.value)}
+                              className="w-7 h-7 rounded border border-border cursor-pointer bg-card p-0.5"
+                            />
+                            <input
+                              type="text"
+                              value={axisTitleColorX}
+                              onChange={(e) => setAxisTitleColorX(e.target.value)}
+                              placeholder="Default Theme Color"
+                              className="flex-1 bg-card border border-border rounded-lg px-2 py-1 text-[10.5px] font-mono text-foreground"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Prefix & Suffix */}
+                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/30">
+                        <div className="space-y-1">
+                          <label className="font-bold text-muted-foreground block">Prefix</label>
+                          <input
+                            type="text"
+                            value={axisTitlePrefixX}
+                            onChange={(e) => setAxisTitlePrefixX(e.target.value)}
+                            placeholder="e.g. RQ1: "
+                            className="w-full bg-card border border-border rounded-lg px-2 py-1 text-[10.5px] font-bold text-foreground"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="font-bold text-muted-foreground block">Suffix</label>
+                          <input
+                            type="text"
+                            value={axisTitleSuffixX}
+                            onChange={(e) => setAxisTitleSuffixX(e.target.value)}
+                            placeholder="e.g. (%) or [N=46]"
+                            className="w-full bg-card border border-border rounded-lg px-2 py-1 text-[10.5px] font-bold text-foreground"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Micro-Position Fine-Tuning */}
+                      <div className="pt-1 border-t border-border/30 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="font-bold text-muted-foreground flex items-center gap-1">
+                            <Move className="w-3 h-3 text-primary" />
+                            <span>Micro-Position Offsets</span>
+                          </label>
+                          {(axisTitleOffsetX_X !== 0 || axisTitleOffsetY_X !== 0) && (
+                            <button
+                              type="button"
+                              onClick={() => { setAxisTitleOffsetX_X(0); setAxisTitleOffsetY_X(0); }}
+                              className="flex items-center gap-1 text-[9.5px] text-muted-foreground hover:text-foreground"
+                            >
+                              <RotateCcw className="w-2.5 h-2.5" />
+                              <span>Reset (0,0)</span>
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[10px] text-muted-foreground">
+                              <span>Nudge X</span>
+                              <span className="font-mono font-bold">{axisTitleOffsetX_X}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={-60}
+                              max={60}
+                              value={axisTitleOffsetX_X}
+                              onChange={(e) => setAxisTitleOffsetX_X(Number(e.target.value))}
+                              className="w-full accent-primary"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[10px] text-muted-foreground">
+                              <span>Nudge Y</span>
+                              <span className="font-mono font-bold">{axisTitleOffsetY_X}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={-60}
+                              max={60}
+                              value={axisTitleOffsetY_X}
+                              onChange={(e) => setAxisTitleOffsetY_X(Number(e.target.value))}
+                              className="w-full accent-primary"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -392,66 +599,261 @@ export function ScientificAxisConfigPanel() {
             />
 
             {showAxisTitleY && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1 border-t border-border/40 text-[11px]">
-                <div className="space-y-1">
-                  <label className="font-bold text-muted-foreground block">Font Size ({axisTitleFontSizeY}px)</label>
-                  <input
-                    type="range"
-                    min={8}
-                    max={32}
-                    value={axisTitleFontSizeY}
-                    onChange={(e) => setAxisTitleFontSizeY(Number(e.target.value))}
-                    className="w-full accent-primary"
-                  />
-                </div>
+              <div className="space-y-2 pt-1 border-t border-border/40 text-[11px]">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Font Size ({axisTitleFontSizeY}px)</label>
+                    <input
+                      type="range"
+                      min={8}
+                      max={32}
+                      value={axisTitleFontSizeY}
+                      onChange={(e) => setAxisTitleFontSizeY(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
+                  </div>
 
-                <div className="space-y-1">
-                  <label className="font-bold text-muted-foreground block">Weight & Style</label>
-                  <div className="flex items-center gap-1">
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Weight & Style</label>
+                    <div className="flex items-center gap-1">
+                      <select
+                        value={axisTitleFontWeightY}
+                        onChange={(e) => setAxisTitleFontWeightY(e.target.value as AxisFontWeight)}
+                        className="flex-1 bg-card border border-border rounded-lg px-1.5 py-1 text-[10.5px] font-bold text-foreground"
+                      >
+                        <option value="normal">Normal</option>
+                        <option value="bold">Bold</option>
+                        <option value="600">Semi-Bold</option>
+                        <option value="700">Extra Bold</option>
+                      </select>
+                      <select
+                        value={axisTitleFontStyleY}
+                        onChange={(e) => setAxisTitleFontStyleY(e.target.value as AxisFontStyle)}
+                        className="w-16 bg-card border border-border rounded-lg px-1 py-1 text-[10.5px] font-bold text-foreground"
+                      >
+                        <option value="italic">Italic</option>
+                        <option value="normal">Plain</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Location</label>
                     <select
-                      value={axisTitleFontWeightY}
-                      onChange={(e) => setAxisTitleFontWeightY(e.target.value as AxisFontWeight)}
-                      className="flex-1 bg-card border border-border rounded-lg px-1.5 py-1 text-[10.5px] font-bold text-foreground"
+                      value={axisTitleLocationY}
+                      onChange={(e) => setAxisTitleLocationY(e.target.value as AxisLocation)}
+                      className="w-full bg-card border border-border rounded-lg px-1.5 py-1 text-[10.5px] font-bold text-foreground"
                     >
-                      <option value="normal">Normal</option>
-                      <option value="bold">Bold</option>
-                      <option value="600">Semi-Bold</option>
-                      <option value="700">Extra Bold</option>
+                      <option value="middle">Middle / Center</option>
+                      <option value="end">Top / End</option>
+                      <option value="start">Bottom / Start</option>
                     </select>
-                    <select
-                      value={axisTitleFontStyleY}
-                      onChange={(e) => setAxisTitleFontStyleY(e.target.value as AxisFontStyle)}
-                      className="w-16 bg-card border border-border rounded-lg px-1 py-1 text-[10.5px] font-bold text-foreground"
-                    >
-                      <option value="italic">Italic</option>
-                      <option value="normal">Plain</option>
-                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="font-bold text-muted-foreground block">Gap ({axisTitleGapY}px)</label>
+                    <input
+                      type="range"
+                      min={5}
+                      max={240}
+                      value={axisTitleGapY}
+                      onChange={(e) => setAxisTitleGapY(Number(e.target.value))}
+                      className="w-full accent-primary"
+                    />
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <label className="font-bold text-muted-foreground block">Location</label>
-                  <select
-                    value={axisTitleLocationY}
-                    onChange={(e) => setAxisTitleLocationY(e.target.value as AxisLocation)}
-                    className="w-full bg-card border border-border rounded-lg px-1.5 py-1 text-[10.5px] font-bold text-foreground"
+                {/* Collapsible Extended Customization for Y-Axis Title */}
+                <div className="pt-1.5 border-t border-border/30">
+                  <button
+                    type="button"
+                    onClick={() => setShowAdvancedTitleY(!showAdvancedTitleY)}
+                    className="w-full flex items-center justify-between px-2 py-1 bg-secondary/30 hover:bg-secondary/60 rounded-lg text-[10.5px] font-bold text-foreground transition-colors"
                   >
-                    <option value="middle">Middle / Center</option>
-                    <option value="end">Top / End</option>
-                    <option value="start">Bottom / Start</option>
-                  </select>
-                </div>
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3 text-emerald-500" />
+                      <span>Extended Customization (Angle, Color, Offsets & Prefix)</span>
+                    </span>
+                    {showAdvancedTitleY ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
 
-                <div className="space-y-1">
-                  <label className="font-bold text-muted-foreground block">Gap ({axisTitleGapY}px)</label>
-                  <input
-                    type="range"
-                    min={5}
-                    max={240}
-                    value={axisTitleGapY}
-                    onChange={(e) => setAxisTitleGapY(Number(e.target.value))}
-                    className="w-full accent-primary"
-                  />
+                  {showAdvancedTitleY && (
+                    <div className="mt-2 p-2.5 bg-secondary/20 rounded-xl border border-border/40 space-y-2.5 animate-fadeIn">
+                      {/* Rotation Angle */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between">
+                          <label className="font-bold text-muted-foreground flex items-center gap-1">
+                            <RotateCw className="w-3 h-3 text-emerald-500" />
+                            <span>Rotation Angle ({axisTitleRotateY}°)</span>
+                          </label>
+                          <div className="flex items-center gap-1">
+                            {[
+                              { label: '90° (Standard)', val: 90 },
+                              { label: '0° (Horizontal)', val: 0 },
+                              { label: '270° (Inverted)', val: 270 },
+                              { label: '-90°', val: -90 }
+                            ].map((preset) => (
+                              <button
+                                key={preset.val}
+                                type="button"
+                                onClick={() => setAxisTitleRotateY(preset.val)}
+                                className={`px-1.5 py-0.5 rounded text-[9.5px] font-bold transition-colors ${
+                                  axisTitleRotateY === preset.val
+                                    ? 'bg-emerald-600 text-white'
+                                    : 'bg-card text-muted-foreground hover:text-foreground border border-border'
+                                }`}
+                              >
+                                {preset.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <input
+                          type="range"
+                          min={-180}
+                          max={180}
+                          step={5}
+                          value={axisTitleRotateY}
+                          onChange={(e) => setAxisTitleRotateY(Number(e.target.value))}
+                          className="w-full accent-primary"
+                        />
+                      </div>
+
+                      {/* Alignment & Dedicated Color */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-border/30">
+                        <div className="space-y-1">
+                          <label className="font-bold text-muted-foreground block">Title Alignment</label>
+                          <div className="grid grid-cols-3 gap-1">
+                            {[
+                              { id: 'left', label: 'Left' },
+                              { id: 'center', label: 'Center' },
+                              { id: 'right', label: 'Right' }
+                            ].map((a) => (
+                              <button
+                                key={a.id}
+                                type="button"
+                                onClick={() => setAxisTitleAlignY(a.id as any)}
+                                className={`py-1 rounded text-[10px] font-bold border transition-colors ${
+                                  axisTitleAlignY === a.id
+                                    ? 'bg-emerald-600 text-white border-emerald-600'
+                                    : 'bg-card text-muted-foreground hover:text-foreground border-border'
+                                }`}
+                              >
+                                {a.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <label className="font-bold text-muted-foreground flex items-center gap-1">
+                              <Palette className="w-3 h-3 text-emerald-500" />
+                              <span>Custom Title Color</span>
+                            </label>
+                            {axisTitleColorY && (
+                              <button
+                                type="button"
+                                onClick={() => setAxisTitleColorY('')}
+                                className="text-[9.5px] text-muted-foreground hover:text-foreground underline"
+                              >
+                                Reset Theme
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="color"
+                              value={axisTitleColorY || '#333333'}
+                              onChange={(e) => setAxisTitleColorY(e.target.value)}
+                              className="w-7 h-7 rounded border border-border cursor-pointer bg-card p-0.5"
+                            />
+                            <input
+                              type="text"
+                              value={axisTitleColorY}
+                              onChange={(e) => setAxisTitleColorY(e.target.value)}
+                              placeholder="Default Theme Color"
+                              className="flex-1 bg-card border border-border rounded-lg px-2 py-1 text-[10.5px] font-mono text-foreground"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Prefix & Suffix */}
+                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/30">
+                        <div className="space-y-1">
+                          <label className="font-bold text-muted-foreground block">Prefix</label>
+                          <input
+                            type="text"
+                            value={axisTitlePrefixY}
+                            onChange={(e) => setAxisTitlePrefixY(e.target.value)}
+                            placeholder="e.g. RQ2: "
+                            className="w-full bg-card border border-border rounded-lg px-2 py-1 text-[10.5px] font-bold text-foreground"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="font-bold text-muted-foreground block">Suffix</label>
+                          <input
+                            type="text"
+                            value={axisTitleSuffixY}
+                            onChange={(e) => setAxisTitleSuffixY(e.target.value)}
+                            placeholder="e.g. (%) or [N=46]"
+                            className="w-full bg-card border border-border rounded-lg px-2 py-1 text-[10.5px] font-bold text-foreground"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Micro-Position Fine-Tuning */}
+                      <div className="pt-1 border-t border-border/30 space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="font-bold text-muted-foreground flex items-center gap-1">
+                            <Move className="w-3 h-3 text-emerald-500" />
+                            <span>Micro-Position Offsets</span>
+                          </label>
+                          {(axisTitleOffsetX_Y !== 0 || axisTitleOffsetY_Y !== 0) && (
+                            <button
+                              type="button"
+                              onClick={() => { setAxisTitleOffsetX_Y(0); setAxisTitleOffsetY_Y(0); }}
+                              className="flex items-center gap-1 text-[9.5px] text-muted-foreground hover:text-foreground"
+                            >
+                              <RotateCcw className="w-2.5 h-2.5" />
+                              <span>Reset (0,0)</span>
+                            </button>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[10px] text-muted-foreground">
+                              <span>Nudge X</span>
+                              <span className="font-mono font-bold">{axisTitleOffsetX_Y}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={-60}
+                              max={60}
+                              value={axisTitleOffsetX_Y}
+                              onChange={(e) => setAxisTitleOffsetX_Y(Number(e.target.value))}
+                              className="w-full accent-primary"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-[10px] text-muted-foreground">
+                              <span>Nudge Y</span>
+                              <span className="font-mono font-bold">{axisTitleOffsetY_Y}px</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={-60}
+                              max={60}
+                              value={axisTitleOffsetY_Y}
+                              onChange={(e) => setAxisTitleOffsetY_Y(Number(e.target.value))}
+                              className="w-full accent-primary"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1034,8 +1436,43 @@ export function ScientificAxisConfigPanel() {
           </div>
         </div>
       )}
-        </>
-      )}
+    </>
+  );
+
+  if (embedded) {
+    return (
+      <div className="space-y-3.5">
+        <div className="flex items-center justify-between pb-1">
+          <span className="text-[10px] font-bold text-muted-foreground">
+            Axis Layout:
+          </span>
+          <span className="text-[10px] uppercase font-bold text-muted-foreground bg-secondary px-2.5 py-0.5 rounded-full border border-border">
+            {isHorizontal ? 'Horizontal Value (X) × Cat (Y)' : 'Standard Vertical (X) × Value (Y)'}
+          </span>
+        </div>
+        {innerContent}
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-3.5 bg-card border border-border rounded-2xl space-y-3.5 shadow-xs">
+      {/* Header with Title and Mode Badge */}
+      <div 
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="flex items-center justify-between gap-2 flex-wrap pb-1 border-b border-border/50 cursor-pointer select-none"
+      >
+        <div className="flex items-center gap-2">
+          {isExpanded ? <ChevronDown className="w-4 h-4 text-primary" /> : <ChevronRight className="w-4 h-4 text-primary" />}
+          <SlidersHorizontal className="w-4 h-4 text-primary" />
+          <span className="text-xs font-black text-foreground">Scientific Axis & Publishing Gridlines</span>
+        </div>
+        <span className="text-[10px] uppercase font-bold text-muted-foreground bg-secondary px-2.5 py-0.5 rounded-full border border-border">
+          {isHorizontal ? 'Horizontal Value (X) × Cat (Y)' : 'Standard Vertical (X) × Value (Y)'}
+        </span>
+      </div>
+
+      {isExpanded && innerContent}
     </div>
   );
 }

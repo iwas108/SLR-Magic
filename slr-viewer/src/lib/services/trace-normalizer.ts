@@ -55,46 +55,61 @@ export function extractMappingReasoning(
     `${cleanKey}_locate`
   ];
 
+function extractTextValue(val: any): string {
+  if (val === undefined || val === null) return '';
+  if (typeof val === 'string') {
+    return val.trim() === '[object Object]' ? '' : val.trim();
+  }
+  if (typeof val === 'object' && !Array.isArray(val)) {
+    if ('reasoning' in val && val.reasoning) return extractTextValue(val.reasoning);
+    if ('justification' in val && val.justification) return extractTextValue(val.justification);
+    if ('mapping' in val && val.mapping) return extractTextValue(val.mapping);
+    if ('rationale' in val && val.rationale) return extractTextValue(val.rationale);
+    if ('explanation' in val && val.explanation) return extractTextValue(val.explanation);
+    if ('locate' in val && val.locate) return extractTextValue(val.locate);
+    if ('evidence' in val && val.evidence) return extractTextValue(val.evidence);
+    if ('quote' in val && val.quote) return extractTextValue(val.quote);
+    if ('exact_quote' in val && val.exact_quote) return extractTextValue(val.exact_quote);
+    if ('text' in val && val.text) return extractTextValue(val.text);
+    return '';
+  }
+  return String(val).trim();
+}
+
   let traceVal = '';
 
+  const actualMapping = (locateMapping && typeof locateMapping === 'object' && locateMapping.extraction_mapping && typeof locateMapping.extraction_mapping === 'object')
+    ? locateMapping.extraction_mapping
+    : ((locateMapping && typeof locateMapping === 'object' && locateMapping.appraisal_reasoning && typeof locateMapping.appraisal_reasoning === 'object')
+      ? locateMapping.appraisal_reasoning
+      : locateMapping);
+
   // 1. Direct candidate key matching
-  if (locateMapping && typeof locateMapping === 'object') {
+  if (actualMapping && typeof actualMapping === 'object') {
     for (const cKey of candidateKeys) {
-      if (locateMapping[cKey] !== undefined && locateMapping[cKey] !== null && locateMapping[cKey] !== '') {
-        traceVal = String(locateMapping[cKey]);
-        break;
+      if (actualMapping[cKey] !== undefined && actualMapping[cKey] !== null && actualMapping[cKey] !== '') {
+        traceVal = extractTextValue(actualMapping[cKey]);
+        if (traceVal) break;
       }
     }
 
-    // 2. Normalized token matching across all keys in locateMapping
+    // 2. Normalized token matching across all keys in actualMapping
     if (!traceVal && normKeyToken) {
-      const matchedKey = Object.keys(locateMapping).find(k => {
+      const matchedKey = Object.keys(actualMapping).find(k => {
         const token = normalizeKeyToken(k);
         return token && (token === normKeyToken || token.includes(normKeyToken) || normKeyToken.includes(token));
       });
-      if (matchedKey && locateMapping[matchedKey]) {
-        traceVal = String(locateMapping[matchedKey]);
+      if (matchedKey && actualMapping[matchedKey]) {
+        traceVal = extractTextValue(actualMapping[matchedKey]);
       }
     }
   }
 
   // 3. Fallback to nested properties inside valObj if present
   if (!traceVal && valObj && typeof valObj === 'object' && !Array.isArray(valObj)) {
-    if ('reasoning' in valObj && valObj.reasoning) {
-      traceVal = String(valObj.reasoning);
-    } else if ('justification' in valObj && valObj.justification) {
-      traceVal = String(valObj.justification);
-    } else if ('mapping' in valObj && valObj.mapping) {
-      traceVal = String(valObj.mapping);
-    } else if ('rationale' in valObj && valObj.rationale) {
-      traceVal = String(valObj.rationale);
-    } else if ('explanation' in valObj && valObj.explanation) {
-      traceVal = String(valObj.explanation);
-    } else if ('locate' in valObj && valObj.locate) {
-      traceVal = String(valObj.locate);
-    } else if ('logic_trace' in valObj && valObj.logic_trace && typeof valObj.logic_trace === 'object') {
-      const lt = valObj.logic_trace;
-      traceVal = String(lt.mapping || lt.reasoning || lt.justification || lt.rationale || lt.locate || '');
+    traceVal = extractTextValue(valObj);
+    if (!traceVal && 'logic_trace' in valObj && valObj.logic_trace && typeof valObj.logic_trace === 'object') {
+      traceVal = extractTextValue(valObj.logic_trace);
     }
   }
 
@@ -106,36 +121,45 @@ export function extractMappingReasoning(
  */
 export function extractEvidenceQuote(
   key: string,
-  valObj: any
+  valObj: any,
+  locateMapping?: any
 ): string {
-  if (!valObj) return '';
-
-  if (typeof valObj === 'object' && !Array.isArray(valObj)) {
-    if ('evidence' in valObj && valObj.evidence) {
-      return String(valObj.evidence).trim();
-    }
-    if ('exact_quote' in valObj && valObj.exact_quote) {
-      return String(valObj.exact_quote).trim();
-    }
-    if ('quote' in valObj && valObj.quote) {
-      return String(valObj.quote).trim();
-    }
-    if ('text' in valObj && valObj.text) {
-      return String(valObj.text).trim();
-    }
-    if ('rationale' in valObj && valObj.rationale) {
-      return String(valObj.rationale).trim();
-    }
-    if ('reasoning' in valObj && valObj.reasoning) {
-      return String(valObj.reasoning).trim();
-    }
+  // 1. Direct check on valObj
+  if (valObj && typeof valObj === 'object' && !Array.isArray(valObj)) {
+    if ('evidence' in valObj && valObj.evidence) return String(valObj.evidence).trim();
+    if ('exact_quote' in valObj && valObj.exact_quote) return String(valObj.exact_quote).trim();
+    if ('quote' in valObj && valObj.quote) return String(valObj.quote).trim();
+    if ('text' in valObj && valObj.text) return String(valObj.text).trim();
     if ('logic_trace' in valObj && valObj.logic_trace && typeof valObj.logic_trace === 'object') {
       const lt = valObj.logic_trace;
       if (lt.evidence) return String(lt.evidence).trim();
       if (lt.exact_quote) return String(lt.exact_quote).trim();
       if (lt.quote) return String(lt.quote).trim();
-      if (lt.rationale) return String(lt.rationale).trim();
-      if (lt.reasoning) return String(lt.reasoning).trim();
+    }
+  }
+
+  // 2. Check locateMapping if available
+  if (locateMapping && typeof locateMapping === 'object') {
+    const actualMap = locateMapping.extraction_mapping || locateMapping.appraisal_reasoning || locateMapping;
+    const cleanKey = key ? key.replace(/^rq\d+[a-z]?_/, '') : '';
+    const candidates = [
+      key,
+      `locate_${key}`,
+      `evidence_${key}`,
+      `quote_${key}`,
+      cleanKey,
+      `locate_${cleanKey}`,
+      `evidence_${cleanKey}`
+    ].filter(Boolean);
+
+    for (const cKey of candidates) {
+      const entry = actualMap[cKey];
+      if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+        if ('evidence' in entry && entry.evidence) return String(entry.evidence).trim();
+        if ('exact_quote' in entry && entry.exact_quote) return String(entry.exact_quote).trim();
+        if ('quote' in entry && entry.quote) return String(entry.quote).trim();
+        if ('text' in entry && entry.text) return String(entry.text).trim();
+      }
     }
   }
 

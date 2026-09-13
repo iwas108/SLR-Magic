@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { 
   BarChart2, 
   X, 
@@ -10,25 +10,60 @@ import {
   PanelRightClose,
   PanelRightOpen,
   Wand2,
-  Save,
-  Upload
+  Database,
+  Bookmark
 } from 'lucide-react';
 import { useVisualizerContext } from '../context/VisualizerContext';
+import { ChartLibraryModal } from './subcomponents/ChartLibraryModal';
+import { subscribeSyncChannel } from '@/lib/sync-utils';
 
 export function VisualizerHeader() {
-  const { props, layout, config, workspace, presets } = useVisualizerContext();
-  const headerFileInputRef = useRef<HTMLInputElement>(null);
-  const { handleExportPreset, handleImportPreset } = presets;
-  const { papers, totalUnfilteredCount, isFiltered, onClose, umbrellanizerMap } = props;
+  const { props, layout, config, data, workspace, presets } = useVisualizerContext();
+  const [isChartLibraryOpen, setIsChartLibraryOpen] = useState(false);
+  const [dbChartsCount, setDbChartsCount] = useState<number | null>(null);
+
+  // Live query for IDE database charts count
+  useEffect(() => {
+    if (props.isViewerMode || !props.projectId) return;
+    let isMounted = true;
+    const loadCount = async () => {
+      try {
+        const res = await fetch(`/api/charts?projectId=${encodeURIComponent(String(props.projectId))}`);
+        const data = await res.json();
+        if (isMounted && data.success && Array.isArray(data.charts)) {
+          setDbChartsCount(data.charts.length);
+        }
+      } catch (e) {}
+    };
+    loadCount();
+    const unsub = subscribeSyncChannel((type) => {
+      if (type === 'SYNC_CHARTS') {
+        loadCount();
+      }
+    });
+    return () => {
+      isMounted = false;
+      unsub();
+    };
+  }, [props.isViewerMode, props.projectId]);
+
+  const { totalUnfilteredCount, onClose, umbrellanizerMap } = props;
   const { layoutMode } = layout;
   const { handleAutoOptimizeActiveSlot, autoOptimizeAllSlots } = config;
+  const activePapers = data.papers || props.papers;
   const {
     isFullscreen,
     toggleFullscreen,
     isZenMode,
     toggleZenMode,
     showShortcutsModal,
-    setShowShortcutsModal
+    setShowShortcutsModal,
+    cohortScope,
+    setCohortScope,
+    fullCohortCount,
+    filteredCohortCount,
+    isFiltered,
+    isLoadingDbCohort
   } = workspace;
 
   return (
@@ -47,13 +82,43 @@ export function VisualizerHeader() {
               Live
             </span>
           </div>
-          <div className="text-[10px] text-muted-foreground font-medium flex items-center gap-2">
-            <span>Cohort: {papers.length} unique papers</span>
-            {isFiltered && (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[9px] font-bold">
-                <AlertTriangle className="w-2.5 h-2.5 text-amber-500" />
-                Filtered from {totalUnfilteredCount || papers.length}
-              </span>
+          <div className="flex items-center gap-2 mt-0.5">
+            {isFiltered ? (
+              <div className="inline-flex p-0.5 rounded-lg bg-background/80 border border-border text-[10px]">
+                <button
+                  type="button"
+                  onClick={() => setCohortScope('full')}
+                  className={`px-2 py-0.5 rounded-md transition-all font-bold ${
+                    cohortScope === 'full'
+                      ? 'bg-primary text-primary-foreground shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  title="Visualize the complete, authoritative study cohort from database"
+                >
+                  Full Study Cohort (N={fullCohortCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCohortScope('filtered')}
+                  className={`px-2 py-0.5 rounded-md transition-all font-bold flex items-center gap-1 ${
+                    cohortScope === 'filtered'
+                      ? 'bg-amber-500 text-white shadow-xs'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                  title="Visualize only the papers matching current table search and filters"
+                >
+                  <AlertTriangle className="w-2.5 h-2.5" />
+                  <span>Filtered View (N={filteredCohortCount})</span>
+                </button>
+              </div>
+            ) : (
+              <div className="text-[10px] text-muted-foreground font-medium flex items-center gap-1.5">
+                <span>Cohort:</span>
+                <span className="font-bold text-foreground">{fullCohortCount || activePapers.length} unique papers</span>
+              </div>
+            )}
+            {isLoadingDbCohort && (
+              <span className="text-[9px] text-primary font-bold animate-pulse">Syncing DB...</span>
             )}
           </div>
         </div>
@@ -64,7 +129,7 @@ export function VisualizerHeader() {
         {/* Auto Optimize Active Slot */}
         <button
           type="button"
-          onClick={() => handleAutoOptimizeActiveSlot(papers, umbrellanizerMap)}
+          onClick={() => handleAutoOptimizeActiveSlot(activePapers, umbrellanizerMap)}
           className="px-2.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs"
           title="Auto-detect best chart type, variables, and color palette based on data cardinality"
         >
@@ -75,7 +140,7 @@ export function VisualizerHeader() {
         {layoutMode !== 'single' && (
           <button
             type="button"
-            onClick={() => autoOptimizeAllSlots(papers, umbrellanizerMap)}
+            onClick={() => autoOptimizeAllSlots(activePapers, umbrellanizerMap)}
             className="px-2.5 py-1.5 rounded-xl bg-secondary/80 hover:bg-secondary text-foreground border border-border text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs hidden md:flex"
             title="Auto-optimize all subfigure slots simultaneously"
           >
@@ -86,34 +151,29 @@ export function VisualizerHeader() {
 
         <div className="w-[1px] h-4 bg-border mx-0.5" />
 
-        {/* Quick JSON Preset Save & Load */}
+        {/* Centralized FAIR Database Chart Library */}
         <button
           type="button"
-          onClick={handleExportPreset}
-          className="px-2.5 py-1.5 rounded-xl bg-secondary/80 hover:bg-secondary text-foreground hover:text-primary border border-border text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs"
-          title="Save complete studio customizations and fine-tuning to .json preset"
+          onClick={() => setIsChartLibraryOpen(true)}
+          className="px-2.5 py-1.5 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs cursor-pointer"
+          title="Open Centralized FAIR Project Chart Library (Saved Database Charts & Legacy Import)"
         >
-          <Save className="w-3.5 h-3.5 text-primary" />
-          <span className="hidden lg:inline">Save JSON</span>
+          <Database className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">Chart Library</span>
+          {props.isViewerMode ? (
+            Array.isArray(props.savedCharts) && props.savedCharts.length > 0 ? (
+              <span className="px-1.5 py-0.2 rounded-full bg-primary/20 text-primary text-[10px] font-mono font-bold" title={`${props.savedCharts.length} project charts saved`}>
+                {props.savedCharts.length}
+              </span>
+            ) : null
+          ) : (
+            dbChartsCount !== null && dbChartsCount > 0 ? (
+              <span className="px-1.5 py-0.2 rounded-full bg-primary/20 text-primary text-[10px] font-mono font-bold" title={`${dbChartsCount} database charts saved`}>
+                {dbChartsCount}
+              </span>
+            ) : null
+          )}
         </button>
-
-        <button
-          type="button"
-          onClick={() => headerFileInputRef.current?.click()}
-          className="px-2.5 py-1.5 rounded-xl bg-secondary/80 hover:bg-secondary text-foreground hover:text-primary border border-border text-xs font-bold transition-all flex items-center gap-1.5 shadow-xs"
-          title="Load saved studio customization from .json preset file"
-        >
-          <Upload className="w-3.5 h-3.5 text-primary" />
-          <span className="hidden lg:inline">Load JSON</span>
-        </button>
-
-        <input
-          ref={headerFileInputRef}
-          type="file"
-          accept=".json,application/json"
-          onChange={handleImportPreset}
-          className="hidden"
-        />
 
         <div className="w-[1px] h-4 bg-border mx-0.5" />
 
@@ -196,6 +256,21 @@ export function VisualizerHeader() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Centralized FAIR Project Chart Library Modal */}
+      {isChartLibraryOpen && (
+        <ChartLibraryModal
+          isOpen={isChartLibraryOpen}
+          onClose={() => setIsChartLibraryOpen(false)}
+          projectId={String(props.projectId || '')}
+          currentPresetPayload={presets.getCurrentPresetPayload ? presets.getCurrentPresetPayload() : { version: '3.0', exportedAt: new Date().toISOString(), layoutMode: 'single', slots: {} as any }}
+          onLoadPreset={presets.loadPresetPayload}
+          isViewerMode={props.isViewerMode}
+          viewerSavedCharts={props.savedCharts}
+          onViewerSaveChart={props.onViewerSaveChart}
+          onViewerDeleteChart={props.onViewerDeleteChart}
+        />
       )}
     </div>
   );

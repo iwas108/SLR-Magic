@@ -67,8 +67,16 @@ export function HorizontalBarConfigPanel() {
     barBenchmarkColor,
     setBarBenchmarkColor,
     showDataLabels,
-    setShowDataLabels
+    setShowDataLabels,
+    enableErrorBars,
+    setEnableErrorBars,
+    errorBarType,
+    setErrorBarType,
+    enableHatchPatterns,
+    setEnableHatchPatterns
   } = config;
+
+  const isAvgMetric = metricMode === 'avg_qa' || metricMode === 'avg_citation';
 
   return (
     <div className="space-y-4">
@@ -630,6 +638,57 @@ export function HorizontalBarConfigPanel() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Scientific Publishing Accessibility & Error Bars */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
+        {/* Texture Hatching for Monochrome Print */}
+        <div className="p-3 bg-secondary/30 border border-border/70 rounded-xl space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">
+            <input
+              type="checkbox"
+              checked={enableHatchPatterns}
+              onChange={(e) => setEnableHatchPatterns(e.target.checked)}
+              className="rounded border-border text-primary"
+            />
+            Academic Texture Hatching (Print / Grayscale)
+          </label>
+          <p className="text-[11px] text-muted-foreground leading-tight">
+            Applies distinct monochrome SVG patterns (stripes, cross-hatch, stippling) to differentiate bars in black-and-white print.
+          </p>
+        </div>
+
+        {/* Statistical Error Bars */}
+        <div className="p-3 bg-secondary/30 border border-border/70 rounded-xl space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">
+            <input
+              type="checkbox"
+              checked={enableErrorBars}
+              disabled={!isAvgMetric}
+              onChange={(e) => setEnableErrorBars(e.target.checked)}
+              className="rounded border-border text-primary disabled:opacity-50"
+            />
+            Scientific Error Bars (Variance Indicators)
+          </label>
+          {isAvgMetric ? (
+            <div className="space-y-1">
+              <select
+                value={errorBarType}
+                disabled={!enableErrorBars}
+                onChange={(e) => setErrorBarType(e.target.value as any)}
+                className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground font-bold disabled:opacity-50"
+              >
+                <option value="std_error">Standard Error (± SE)</option>
+                <option value="std_dev">Standard Deviation (± SD)</option>
+                <option value="ci_95">95% Confidence Interval (± 1.96 SE)</option>
+              </select>
+            </div>
+          ) : (
+            <p className="text-[11px] text-muted-foreground leading-tight">
+              Error bars are active when metric is set to Average QA Score or Average Citation Count.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

@@ -12,8 +12,9 @@ import {
 } from '@/lib/services/taxonomy-resolver';
 import VisualizerModal from '../modals/VisualizerModal';
 import LlmContextBuilderModal from '../modals/LlmContextBuilderModal';
+import CohortPaperDetailsModal from './CohortPaperDetailsModal';
 
-// Condensed clickable cell helper with copy & trace tooltips (expand-on-click removed)
+// Clean table cell helper without popovers (comprehensive fullscreen modal handles inspection)
 const ClickableCell = ({ 
   children, 
   className = "",
@@ -21,7 +22,7 @@ const ClickableCell = ({
   valueToCopy,
   traceInfo,
   originalValue,
-  pdfLink
+  onClick
 }: { 
   children: React.ReactNode; 
   className?: string;
@@ -30,207 +31,27 @@ const ClickableCell = ({
   traceInfo?: { mapping?: string; evidence?: string; justification?: string };
   originalValue?: string;
   pdfLink?: string;
+  onClick?: () => void;
 }) => {
-  const [activeTooltip, setActiveTooltip] = useState<'value' | 'trace' | null>(null);
-  const [copiedType, setCopiedType] = useState<'value' | 'trace-mapping' | 'trace-evidence' | 'trace-justification' | 'original' | null>(null);
-  const cellRef = useRef<HTMLDivElement>(null);
-
-  // Auto close tooltip when clicking outside
-  useEffect(() => {
-    if (!activeTooltip) return;
-    const handleDocumentClick = (e: MouseEvent) => {
-      if (cellRef.current && !cellRef.current.contains(e.target as Node)) {
-        setActiveTooltip(null);
-      }
-    };
-    document.addEventListener('mousedown', handleDocumentClick);
-    return () => document.removeEventListener('mousedown', handleDocumentClick);
-  }, [activeTooltip]);
-
-  // Listen for custom event to close other tooltips when one opens
-  useEffect(() => {
-    const handleCloseAll = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      if (customEvent.detail?.exceptRef !== cellRef) {
-        setActiveTooltip(null);
-      }
-    };
-    window.addEventListener('close-all-tooltips', handleCloseAll);
-    return () => window.removeEventListener('close-all-tooltips', handleCloseAll);
-  }, []);
-
-  const setAndBroadcastTooltip = (type: 'value' | 'trace' | null) => {
-    setActiveTooltip(type);
-    if (type) {
-      window.dispatchEvent(new CustomEvent('close-all-tooltips', { detail: { exceptRef: cellRef } }));
-    }
-  };
-
-  const handleCopy = (text: string, type: 'value' | 'trace-mapping' | 'trace-evidence' | 'trace-justification' | 'original') => {
-    navigator.clipboard.writeText(text);
-    setCopiedType(type);
-    setTimeout(() => setCopiedType(null), 2000);
-  };
+  const effectiveTitle = title || [
+    valueToCopy ? `Umbrellanized Value: ${valueToCopy}` : '',
+    originalValue && originalValue !== valueToCopy ? `Raw Token: ${originalValue}` : '',
+    traceInfo?.justification ? `Taxonomy Justification: ${traceInfo.justification}` : '',
+    traceInfo?.mapping ? `Extraction Mapping: ${traceInfo.mapping}` : '',
+    traceInfo?.evidence ? `Evidence Quote: "${traceInfo.evidence}"` : ''
+  ].filter(Boolean).join('\n\n');
 
   return (
-    <div ref={cellRef} className="relative group/cell w-full h-full min-h-[22px]">
-      {/* Content wrapper (always condensed to one line) */}
+    <div 
+      onClick={onClick}
+      title={effectiveTitle || undefined}
+      className="w-full h-full min-h-[22px] flex items-center select-text"
+    >
       <div 
-        title={title}
-        className={`transition-all duration-150 select-text pr-10 truncate max-h-[18px] overflow-hidden whitespace-nowrap text-ellipsis block ${className}`}
+        className={`transition-all duration-150 truncate max-h-[18px] overflow-hidden whitespace-nowrap text-ellipsis block w-full ${className}`}
       >
         {children}
       </div>
-
-      {/* Action Buttons on top right (visible on cell hover or when tooltip is open) */}
-      <div className={`absolute right-1 top-0.5 flex items-center gap-1 opacity-0 group-hover/cell:opacity-100 transition-opacity duration-150 z-10 ${activeTooltip ? 'opacity-100' : ''}`}>
-        {valueToCopy && (
-          <button
-            onClick={() => setAndBroadcastTooltip(activeTooltip === 'value' ? null : 'value')}
-            className={`p-0.5 rounded hover:bg-secondary border border-border/40 text-muted-foreground hover:text-foreground transition-colors bg-card/90 shadow-sm ${activeTooltip === 'value' ? 'bg-secondary text-primary border-primary/30' : ''}`}
-            title="View and copy cell value"
-          >
-            <Eye className="w-3 h-3" />
-          </button>
-        )}
-        
-        {traceInfo && (traceInfo.mapping || traceInfo.evidence || traceInfo.justification) && (
-          <button
-            onClick={() => setAndBroadcastTooltip(activeTooltip === 'trace' ? null : 'trace')}
-            className={`p-0.5 rounded hover:bg-secondary border border-border/40 text-muted-foreground hover:text-foreground transition-colors bg-card/90 shadow-sm ${activeTooltip === 'trace' ? 'bg-secondary text-primary border-primary/30' : ''}`}
-            title="View extraction logic trace"
-          >
-            <Link2 className="w-3 h-3" />
-          </button>
-        )}
-      </div>
-
-      {/* Dismissable value copy tooltip */}
-      {activeTooltip === 'value' && valueToCopy && (
-        <div className="absolute right-0 top-full mt-1.5 z-50 w-72 p-3 bg-popover border border-border rounded-lg shadow-xl text-left text-[11px] text-popover-foreground flex flex-col gap-2">
-          <div className="flex justify-between items-center border-b border-border pb-1">
-            <span className="font-bold text-[10px] uppercase text-primary">Copy Cell Value</span>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => handleCopy(valueToCopy, 'value')}
-                className="p-1 hover:bg-secondary rounded border border-border flex items-center gap-1 text-[9px] font-bold text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {copiedType === 'value' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                {copiedType === 'value' ? 'Copied' : 'Copy'}
-              </button>
-              <button
-                onClick={() => setActiveTooltip(null)}
-                className="p-1 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-          <div className="bg-secondary/40 p-2 rounded text-[10px] font-medium font-mono max-h-24 overflow-y-auto select-all break-all leading-normal">
-            {valueToCopy}
-          </div>
-          {originalValue && originalValue !== valueToCopy && (
-            <div className="flex flex-col gap-1 border-t border-border/60 pt-1.5 mt-0.5">
-              <div className="flex justify-between items-center">
-                <span className="font-bold text-[10px] uppercase text-muted-foreground">Original Value</span>
-                <button
-                  onClick={() => handleCopy(originalValue, 'original')}
-                  className="p-1 hover:bg-secondary rounded border border-border flex items-center gap-1 text-[9px] font-bold text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  {copiedType === 'original' ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
-                  {copiedType === 'original' ? 'Copied' : 'Copy'}
-                </button>
-              </div>
-              <div className="bg-secondary/40 p-2 rounded text-[10px] font-medium font-mono max-h-24 overflow-y-auto select-all break-all leading-normal">
-                {originalValue}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Dismissable trace copy tooltip */}
-      {activeTooltip === 'trace' && traceInfo && (
-        <div className="absolute right-0 top-full mt-1.5 z-50 w-80 p-3 bg-popover border border-border rounded-lg shadow-xl text-left text-[11px] text-popover-foreground flex flex-col gap-3">
-          <div className="flex justify-between items-center border-b border-border pb-1">
-            <span className="font-bold text-[10px] uppercase text-primary">Logic Trace & Details</span>
-            <div className="flex items-center gap-1.5">
-              {pdfLink && (
-                <a
-                  href={pdfLink}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-0.5 text-[9px] font-bold text-primary hover:underline cursor-pointer"
-                  title="Open PDF Document"
-                >
-                  <ExternalLink className="w-2.5 h-2.5" />
-                  PDF Link
-                </a>
-              )}
-              <button
-                onClick={() => setActiveTooltip(null)}
-                className="p-1 hover:bg-secondary rounded text-muted-foreground hover:text-foreground transition-colors"
-              >
-                <X className="w-3 h-3" />
-              </button>
-            </div>
-          </div>
-          
-          {traceInfo.mapping && (
-            <div className="flex flex-col gap-1">
-              <div className="flex justify-between items-center">
-                <span className="text-[9px] uppercase font-extrabold text-muted-foreground">Mapping Rules / Reasoning</span>
-                <button
-                  onClick={() => handleCopy(traceInfo.mapping!, 'trace-mapping')}
-                  className="inline-flex items-center gap-1 text-[9px] font-bold text-primary hover:underline"
-                >
-                  {copiedType === 'trace-mapping' ? <Check className="w-2.5 h-2.5 text-emerald-500" /> : <Copy className="w-2.5 h-2.5" />}
-                  {copiedType === 'trace-mapping' ? 'Copied' : 'Copy'}
-                </button>
-              </div>
-              <div className="bg-secondary/40 p-2 rounded text-[10px] font-semibold max-h-20 overflow-y-auto select-all break-words leading-normal">
-                {traceInfo.mapping}
-              </div>
-            </div>
-          )}
-          
-          {traceInfo.evidence && (
-            <div className="flex flex-col gap-1">
-              <div className="flex justify-between items-center">
-                <span className="text-[9px] uppercase font-extrabold text-muted-foreground">Evidence Quote</span>
-                <button
-                  onClick={() => handleCopy(traceInfo.evidence!, 'trace-evidence')}
-                  className="inline-flex items-center gap-1 text-[9px] font-bold text-primary hover:underline"
-                >
-                  {copiedType === 'trace-evidence' ? <Check className="w-2.5 h-2.5 text-emerald-500" /> : <Copy className="w-2.5 h-2.5" />}
-                  {copiedType === 'trace-evidence' ? 'Copied' : 'Copy'}
-                </button>
-              </div>
-              <div className="bg-secondary/40 p-2 rounded text-[10px] font-medium italic max-h-20 overflow-y-auto select-all break-words leading-normal">
-                "{traceInfo.evidence}"
-              </div>
-            </div>
-          )}
-
-          {traceInfo.justification && (
-            <div className="flex flex-col gap-1">
-              <div className="flex justify-between items-center">
-                <span className="text-[9px] uppercase font-extrabold text-muted-foreground">Taxonomy Justification</span>
-                <button
-                  onClick={() => handleCopy(traceInfo.justification!, 'trace-justification')}
-                  className="inline-flex items-center gap-1 text-[9px] font-bold text-primary hover:underline"
-                >
-                  {copiedType === 'trace-justification' ? <Check className="w-2.5 h-2.5 text-emerald-500" /> : <Copy className="w-2.5 h-2.5" />}
-                  {copiedType === 'trace-justification' ? 'Copied' : 'Copy'}
-                </button>
-              </div>
-              <div className="bg-secondary/40 p-2 rounded text-[10px] font-semibold max-h-20 overflow-y-auto select-all break-words leading-normal">
-                {traceInfo.justification}
-              </div>
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 };
@@ -304,6 +125,8 @@ export default function FinalCohortPanel({
   const isLlmContextBuilderOpen = externalIsLlmContextBuilderOpen !== undefined ? externalIsLlmContextBuilderOpen : internalIsLlmContextBuilderOpen;
   const setIsLlmContextBuilderOpen = externalSetIsLlmContextBuilderOpen || setInternalIsLlmContextBuilderOpen;
   const [selectedPaperId, setSelectedPaperId] = useState<string | null>(null);
+  const [isInspectionModalOpen, setIsInspectionModalOpen] = useState(false);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
 
   // Column Width Resizing State
   const [columnWidths, setColumnWidths] = useState<Record<string, number>>({});
@@ -788,6 +611,29 @@ export default function FinalCohortPanel({
     return sortedPapers.slice(offset, offset + limit);
   }, [sortedPapers, page, limit]);
 
+  const selectedPaperIndex = useMemo(() => {
+    if (!selectedPaperId) return -1;
+    return sortedPapers.findIndex((p) => String(p.Paper_ID) === String(selectedPaperId));
+  }, [selectedPaperId, sortedPapers]);
+
+  const selectedPaper = useMemo(() => {
+    if (selectedPaperIndex === -1) return null;
+    return sortedPapers[selectedPaperIndex];
+  }, [selectedPaperIndex, sortedPapers]);
+
+  const handleNavigatePaper = useCallback((direction: 'prev' | 'next') => {
+    if (selectedPaperIndex === -1 || sortedPapers.length === 0) return;
+    if (direction === 'prev') {
+      if (selectedPaperIndex > 0) {
+        setSelectedPaperId(sortedPapers[selectedPaperIndex - 1].Paper_ID);
+      }
+    } else {
+      if (selectedPaperIndex < sortedPapers.length - 1) {
+        setSelectedPaperId(sortedPapers[selectedPaperIndex + 1].Paper_ID);
+      }
+    }
+  }, [selectedPaperIndex, sortedPapers]);
+
   useEffect(() => {
     setPage(1);
   }, [searchTerm, minQaScore, maxQaScore, selectedExtractedFilters, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, yearFilter, publisherFilter]);
@@ -1105,24 +951,51 @@ export default function FinalCohortPanel({
               {filteredPapers.length} / {allPapers.length} papers
             </span>
           </div>
+          {selectedPaper && (
+            <button
+              onClick={() => setIsInspectionModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
+              title="Open Fullscreen Paper Inspection"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>Inspect Paper: <strong className="font-mono">{selectedPaper.Paper_ID}</strong></span>
+            </button>
+          )}
         </div>
 
         {loading ? (
           <div className="h-full flex items-center justify-center text-muted-foreground">
             <Loader2 className="w-6 h-6 animate-spin" />
           </div>
-        ) : sortedPapers.length === 0 ? (
-          <div className="h-full flex items-center justify-center text-center p-6 text-muted-foreground text-xs italic">
-            No papers match the current filters.
+        ) : filteredPapers.length === 0 ? (
+          <div className="h-full flex flex-col items-center justify-center text-muted-foreground p-8 text-center">
+            <div className="w-12 h-12 rounded-full bg-secondary/50 flex items-center justify-center mb-3">
+              <X className="w-6 h-6 text-muted-foreground/50" />
+            </div>
+            <p className="text-sm font-semibold text-foreground mb-1">No matching papers found</p>
+            <p className="text-xs max-w-sm mb-4">Try adjusting your search criteria or clearing active filters.</p>
+            {activeFiltersCount > 0 && (
+              <button
+                onClick={clearAllFilters}
+                className="px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary rounded-lg text-xs font-semibold transition-colors"
+              >
+                Clear all filters
+              </button>
+            )}
           </div>
         ) : (
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <div className="flex-1 overflow-auto">
-              <table className="w-full text-left text-xs border-collapse relative table-fixed">
-                <thead className="sticky top-0 z-10 bg-secondary border-b border-border shadow-sm">
-                  <tr className="text-muted-foreground text-[9px] font-bold uppercase whitespace-nowrap select-none">
+          <div className="flex-1 flex flex-col overflow-hidden min-h-0">
+            {/* Scrollable Table Area */}
+            <div 
+              ref={tableContainerRef}
+              className="flex-1 overflow-auto relative border-b border-border bg-background select-text"
+              style={{ minHeight: 0 }}
+            >
+              <table className="w-max min-w-full text-left text-xs border-collapse border-spacing-0 table-fixed">
+                <thead className="bg-secondary/90 sticky top-0 z-10 backdrop-blur shadow-xs text-foreground select-none">
+                  <tr className="border-b border-border font-bold text-[10px] tracking-wider uppercase text-muted-foreground">
                     <th 
-                      className="p-2 border-b border-border cursor-pointer hover:bg-secondary/45 transition-colors relative group" 
+                      className="p-2 border-b border-border cursor-pointer hover:bg-secondary transition-colors relative group" 
                       style={{ width: getColWidth('Paper_ID'), minWidth: getColWidth('Paper_ID'), maxWidth: getColWidth('Paper_ID') }}
                       onClick={() => handleColumnSort('Paper_ID')}
                     >
@@ -1134,7 +1007,7 @@ export default function FinalCohortPanel({
                       />
                     </th>
                     <th 
-                      className="p-2 border-b border-border cursor-pointer hover:bg-secondary/45 transition-colors relative group" 
+                      className="p-2 border-b border-border cursor-pointer hover:bg-secondary transition-colors relative group" 
                       style={{ width: getColWidth('Title'), minWidth: getColWidth('Title'), maxWidth: getColWidth('Title') }}
                       onClick={() => handleColumnSort('Title')}
                     >
@@ -1146,7 +1019,7 @@ export default function FinalCohortPanel({
                       />
                     </th>
                     <th 
-                      className="p-2 border-b border-border cursor-pointer hover:bg-secondary/45 transition-colors relative group" 
+                      className="p-2 border-b border-border cursor-pointer hover:bg-secondary transition-colors relative group" 
                       style={{ width: getColWidth('Authors'), minWidth: getColWidth('Authors'), maxWidth: getColWidth('Authors') }}
                       onClick={() => handleColumnSort('Authors')}
                     >
@@ -1158,7 +1031,7 @@ export default function FinalCohortPanel({
                       />
                     </th>
                     <th 
-                      className="p-2 border-b border-border text-center cursor-pointer hover:bg-secondary/45 transition-colors relative group" 
+                      className="p-2 border-b border-border text-center cursor-pointer hover:bg-secondary transition-colors relative group" 
                       style={{ width: getColWidth('Year'), minWidth: getColWidth('Year'), maxWidth: getColWidth('Year') }}
                       onClick={() => handleColumnSort('Year')}
                     >
@@ -1170,7 +1043,7 @@ export default function FinalCohortPanel({
                       />
                     </th>
                     <th 
-                      className="p-2 border-b border-border cursor-pointer hover:bg-secondary/45 transition-colors relative group" 
+                      className="p-2 border-b border-border cursor-pointer hover:bg-secondary transition-colors relative group" 
                       style={{ width: getColWidth('DOI'), minWidth: getColWidth('DOI'), maxWidth: getColWidth('DOI') }}
                       onClick={() => handleColumnSort('DOI')}
                     >
@@ -1182,7 +1055,7 @@ export default function FinalCohortPanel({
                       />
                     </th>
                     <th 
-                      className="p-2 border-b border-border cursor-pointer hover:bg-secondary/45 transition-colors relative group" 
+                      className="p-2 border-b border-border cursor-pointer hover:bg-secondary transition-colors relative group" 
                       style={{ width: getColWidth('Import_Source'), minWidth: getColWidth('Import_Source'), maxWidth: getColWidth('Import_Source') }}
                       onClick={() => handleColumnSort('Import_Source')}
                     >
@@ -1194,11 +1067,10 @@ export default function FinalCohortPanel({
                       />
                     </th>
                     <th 
-                      className="p-2 border-b border-border text-center cursor-pointer hover:bg-secondary/45 transition-colors relative group" 
+                      className="p-2 border-b border-border text-center relative group" 
                       style={{ width: getColWidth('Local_PDF_Status'), minWidth: getColWidth('Local_PDF_Status'), maxWidth: getColWidth('Local_PDF_Status') }}
-                      onClick={() => handleColumnSort('Local_PDF_Status')}
                     >
-                      <div className="truncate pr-2">PDF {renderSortIndicator('Local_PDF_Status')}</div>
+                      <div className="truncate">PDF</div>
                       <div
                         onMouseDown={(e) => handleResizeStart(e, 'Local_PDF_Status')}
                         onClick={(e) => e.stopPropagation()}
@@ -1206,7 +1078,7 @@ export default function FinalCohortPanel({
                       />
                     </th>
                     <th 
-                      className="p-2 border-b border-border cursor-pointer hover:bg-secondary/45 transition-colors relative group" 
+                      className="p-2 border-b border-border cursor-pointer hover:bg-secondary transition-colors relative group" 
                       style={{ width: getColWidth('PDF_Link'), minWidth: getColWidth('PDF_Link'), maxWidth: getColWidth('PDF_Link') }}
                       onClick={() => handleColumnSort('PDF_Link')}
                     >
@@ -1218,7 +1090,7 @@ export default function FinalCohortPanel({
                       />
                     </th>
                     <th 
-                      className="p-2 border-b border-border cursor-pointer hover:bg-secondary/45 transition-colors relative group" 
+                      className="p-2 border-b border-border cursor-pointer hover:bg-secondary transition-colors relative group" 
                       style={{ width: getColWidth('Publisher'), minWidth: getColWidth('Publisher'), maxWidth: getColWidth('Publisher') }}
                       onClick={() => handleColumnSort('Publisher')}
                     >
@@ -1230,7 +1102,7 @@ export default function FinalCohortPanel({
                       />
                     </th>
                     <th 
-                      className="p-2 border-b border-border text-center cursor-pointer hover:bg-secondary/45 transition-colors relative group" 
+                      className="p-2 border-b border-border text-center cursor-pointer hover:bg-secondary transition-colors relative group" 
                       style={{ width: getColWidth('citation_count'), minWidth: getColWidth('citation_count'), maxWidth: getColWidth('citation_count') }}
                       onClick={() => handleColumnSort('citation_count')}
                     >
@@ -1301,6 +1173,10 @@ export default function FinalCohortPanel({
                       <tr 
                         key={p.Paper_ID} 
                         onClick={() => setSelectedPaperId(p.Paper_ID)}
+                        onDoubleClick={() => {
+                          setSelectedPaperId(p.Paper_ID);
+                          setIsInspectionModalOpen(true);
+                        }}
                         className={`transition-colors group cursor-pointer ${
                           isSelected 
                             ? 'bg-primary/15 dark:bg-primary/25 border-l-2 border-l-primary font-medium' 
@@ -1312,15 +1188,44 @@ export default function FinalCohortPanel({
                           className="p-2 border-b border-border/50"
                           style={{ width: getColWidth('Paper_ID'), minWidth: getColWidth('Paper_ID'), maxWidth: getColWidth('Paper_ID') }}
                         >
-                          <ClickableCell valueToCopy={p.Paper_ID} className="font-bold text-muted-foreground font-mono text-[10px]">
-                            {p.Paper_ID}
-                          </ClickableCell>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedPaperId(p.Paper_ID);
+                                setIsInspectionModalOpen(true);
+                              }}
+                              title="Inspect Full Paper Details & PDF"
+                              className="p-1 rounded hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors shrink-0"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                            <ClickableCell 
+                              valueToCopy={p.Paper_ID} 
+                              className="font-bold text-muted-foreground font-mono text-[10px]"
+                              onClick={() => {
+                                setSelectedPaperId(p.Paper_ID);
+                                setIsInspectionModalOpen(true);
+                              }}
+                            >
+                              {p.Paper_ID}
+                            </ClickableCell>
+                          </div>
                         </td>
                         <td 
                           className="p-2 border-b border-border/50"
                           style={{ width: getColWidth('Title'), minWidth: getColWidth('Title'), maxWidth: getColWidth('Title') }}
                         >
-                          <ClickableCell valueToCopy={p.Title} className="font-semibold text-foreground text-[10px]" title={p.Title}>
+                          <ClickableCell 
+                            valueToCopy={p.Title} 
+                            className="font-semibold text-foreground text-[10px]" 
+                            title={p.Title}
+                            onClick={() => {
+                              setSelectedPaperId(p.Paper_ID);
+                              setIsInspectionModalOpen(true);
+                            }}
+                          >
                             {p.Title}
                           </ClickableCell>
                         </td>
@@ -1523,6 +1428,8 @@ export default function FinalCohortPanel({
         isOpen={isVisualizerOpen}
         onClose={() => setIsVisualizerOpen(false)}
         papers={filteredPapers}
+        allCohortPapers={allPapers}
+        projectId={projectId}
         totalUnfilteredCount={allPapers.length}
         isFiltered={filteredPapers.length < allPapers.length}
         umbrellanizerMap={umbrellanizerMap}
@@ -1536,6 +1443,19 @@ export default function FinalCohortPanel({
         umbrellanizerMap={umbrellanizerMap}
         projectId={projectId}
         showToast={showToast}
+      />
+
+      <CohortPaperDetailsModal
+        isOpen={isInspectionModalOpen}
+        onClose={() => setIsInspectionModalOpen(false)}
+        paper={selectedPaper}
+        currentIndex={selectedPaperIndex >= 0 ? selectedPaperIndex + 1 : 0}
+        totalCount={sortedPapers.length}
+        hasPrev={selectedPaperIndex > 0}
+        hasNext={selectedPaperIndex >= 0 && selectedPaperIndex < sortedPapers.length - 1}
+        onNavigate={handleNavigatePaper}
+        umbrellanizerMap={umbrellanizerMap}
+        mode="ide"
       />
     </div>
   );

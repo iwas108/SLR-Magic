@@ -6,6 +6,7 @@ import {
   limitCategoryMap,
   formatVariableDisplayName
 } from '../utils/dataExtractor';
+import { hexToRgba, resolvePaletteAccent } from '../utils/colorUtils';
 import type { ChartGeneratorContext } from './types';
 import { buildScientificAxisConfig, resolveUniversalGrid } from './axisConfigHelper';
 
@@ -42,12 +43,13 @@ export function generateScatterOption(ctx: ChartGeneratorContext): echarts.EChar
         const meanY = validPts.reduce((acc, d) => acc + d[1], 0) / validPts.length;
         const minX = Math.min(...validPts.map(d => d[0]));
         const maxX = Math.max(...validPts.map(d => d[0]));
+        const regressionColor = palette.accent || palette.colors[1] || '#ef4444';
         regressionSeries = {
           name: 'Mean Trend',
           type: 'line' as const,
           showSymbol: false,
           data: [[minX, meanY], [maxX, meanY]],
-          lineStyle: { color: palette.colors[1] || '#ef4444', width: 2, type: 'dashed' }
+          lineStyle: { color: regressionColor, width: 2, type: 'dashed' }
         };
       } else {
         // Linear Ordinary Least Squares (OLS)
@@ -64,12 +66,13 @@ export function generateScatterOption(ctx: ChartGeneratorContext): echarts.EChar
         const intercept = (sumY - slope * sumX) / n;
         const minX = Math.min(...validPts.map(d => d[0]));
         const maxX = Math.max(...validPts.map(d => d[0]));
+        const regressionColor = palette.accent || palette.colors[1] || '#ef4444';
         regressionSeries = {
           name: 'Linear OLS Fit',
           type: 'line' as const,
           showSymbol: false,
           data: [[minX, slope * minX + intercept], [maxX, slope * maxX + intercept]],
-          lineStyle: { color: palette.colors[1] || '#ef4444', width: 2.2, type: 'solid' }
+          lineStyle: { color: regressionColor, width: 2.2, type: 'solid' }
         };
       }
     }
@@ -94,7 +97,38 @@ export function generateScatterOption(ctx: ChartGeneratorContext): echarts.EChar
       defaultTitle: numFieldY
     }),
     series: [
-      { type: 'scatter' as const, symbolSize: pSize, data: scatterData, itemStyle: { opacity: pOpacity } },
+      {
+        type: 'scatter' as const,
+        symbol: ctx.scatterSymbol || 'circle',
+        symbolSize: pSize,
+        data: scatterData,
+        label: {
+          show: Boolean(ctx.showDataLabels),
+          position: (ctx.universalLabelPosition || 'top') as any,
+          formatter: (params: any) => {
+            const labelFmt = ctx.labelFormat;
+            if (labelFmt === 'name_only') return params.data[2] || '';
+            if (labelFmt === 'count_only' || labelFmt === 'ratio_only') return `${params.data[0]}, ${params.data[1]}`;
+            return `${params.data[2] || ''} (${params.data[0]}, ${params.data[1]})`;
+          },
+          fontFamily: font,
+          fontSize: ctx.universalLabelFontSize || Math.max(9, fontSize - 2),
+          color: ctx.universalLabelColor || palette.text
+        },
+        itemStyle: {
+          opacity: pOpacity,
+          color: ctx.scatterColor || palette.colors[0],
+          borderColor: ctx.scatterBorderColor || (ctx.scatterBorderWidth ? palette.colors[0] : palette.bg),
+          borderWidth: ctx.scatterBorderWidth ?? 1
+        },
+        emphasis: {
+          scale: 1.3,
+          itemStyle: {
+            shadowBlur: 8,
+            shadowColor: hexToRgba(ctx.scatterColor || palette.colors[0], 0.45)
+          }
+        }
+      },
       ...(regressionSeries ? [regressionSeries] : [])
     ]
   };
@@ -102,20 +136,6 @@ export function generateScatterOption(ctx: ChartGeneratorContext): echarts.EChar
 
 function cleanKey(rawKey: string): string {
   return formatVariableDisplayName(rawKey);
-}
-
-function hexToRgba(hex: string, alpha: number): string {
-  if (!hex) return `rgba(59, 130, 246, ${alpha})`;
-  let c = hex.replace('#', '');
-  if (c.length === 3) {
-    c = c.split('').map(x => x + x).join('');
-  }
-  const num = parseInt(c, 16);
-  if (isNaN(num)) return `rgba(59, 130, 246, ${alpha})`;
-  const r = (num >> 16) & 255;
-  const g = (num >> 8) & 255;
-  const b = num & 255;
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 export function generateBubbleOption(ctx: ChartGeneratorContext): echarts.EChartsOption {
@@ -182,7 +202,33 @@ export function generateBubbleOption(ctx: ChartGeneratorContext): echarts.EChart
         type: 'scatter', 
         symbolSize: (d: any) => Math.max(6, Math.round(d[2] * 2 * (bubbleScale || 1.0))), 
         data: bubbleData, 
-        itemStyle: { opacity: pOpacity } 
+        label: {
+          show: ctx.bubbleShowLabels !== false && ctx.showDataLabels !== false,
+          position: (ctx.universalLabelPosition || 'top') as any,
+          formatter: (p: any) => {
+            if (!p.data) return '';
+            const format = ctx.bubbleLabelFormat || 'label';
+            if (format === 'label') return p.data[3] || '';
+            if (format === 'count_only') return `${p.data[2]}`;
+            return `${p.data[3] || ''} (${p.data[2]})`;
+          },
+          fontFamily: font,
+          fontSize: ctx.bubbleLabelFontSize ?? 11,
+          color: ctx.bubbleLabelColor || palette.text
+        },
+        itemStyle: { 
+          opacity: pOpacity,
+          color: palette.colors[0],
+          borderColor: ctx.bubbleBorderColor || palette.border,
+          borderWidth: ctx.bubbleBorderWidth ?? 1.5
+        },
+        emphasis: {
+          scale: 1.25,
+          itemStyle: {
+            shadowBlur: 10,
+            shadowColor: hexToRgba(palette.colors[0], 0.4)
+          }
+        }
       }]
     };
   }
@@ -197,8 +243,8 @@ export function generateBubbleOption(ctx: ChartGeneratorContext): echarts.EChart
     levelCustomGroupLinks
   };
 
-  const effectivePrimaryField = primaryField || 'ext:macro:rq3a_hardware_tier';
-  const effectiveSecondaryField = secondaryField || 'ext:macro:rq8a_control_autonomy';
+  const effectivePrimaryField = primaryField || 'Year';
+  const effectiveSecondaryField = secondaryField || 'Import_Source';
 
   const countsP = new Map<string, any[]>();
   const countsS = new Map<string, any[]>();
@@ -338,7 +384,7 @@ export function generateBubbleOption(ctx: ChartGeneratorContext): echarts.EChart
   };
 
   const labelConfig = {
-    show: ctx.bubbleShowLabels !== false,
+    show: ctx.bubbleShowLabels !== false && ctx.showDataLabels !== false,
     formatter: (param: any) => {
       if (!param.data) return '';
       const format = ctx.bubbleLabelFormat || 'count_n';
@@ -374,8 +420,15 @@ export function generateBubbleOption(ctx: ChartGeneratorContext): echarts.EChart
           itemStyle: {
             color: (param: any) => param.data[5] || color,
             opacity: (ctx.bubbleOpacity ?? 85) / 100,
-            borderColor: ctx.bubbleBorderColor || '#333333',
+            borderColor: ctx.bubbleBorderColor || palette.border,
             borderWidth: ctx.bubbleBorderWidth ?? 1.5
+          },
+          emphasis: {
+            scale: 1.25,
+            itemStyle: {
+              shadowBlur: 10,
+              shadowColor: hexToRgba(palette.text, 0.3)
+            }
           },
           label: labelConfig
         });
@@ -400,8 +453,15 @@ export function generateBubbleOption(ctx: ChartGeneratorContext): echarts.EChart
           itemStyle: {
             color: (param: any) => param.data[5] || fallbackColor,
             opacity: (ctx.bubbleOpacity ?? 85) / 100,
-            borderColor: ctx.bubbleBorderColor || '#333333',
+            borderColor: ctx.bubbleBorderColor || palette.border,
             borderWidth: ctx.bubbleBorderWidth ?? 1.5
+          },
+          emphasis: {
+            scale: 1.25,
+            itemStyle: {
+              shadowBlur: 10,
+              shadowColor: hexToRgba(palette.text, 0.3)
+            }
           },
           label: labelConfig
         });
@@ -420,8 +480,15 @@ export function generateBubbleOption(ctx: ChartGeneratorContext): echarts.EChart
           itemStyle: {
             color: (param: any) => param.data[5] || color,
             opacity: (ctx.bubbleOpacity ?? 85) / 100,
-            borderColor: ctx.bubbleBorderColor || '#333333',
+            borderColor: ctx.bubbleBorderColor || palette.border,
             borderWidth: ctx.bubbleBorderWidth ?? 1.5
+          },
+          emphasis: {
+            scale: 1.25,
+            itemStyle: {
+              shadowBlur: 10,
+              shadowColor: hexToRgba(palette.text, 0.3)
+            }
           },
           label: labelConfig
         });
@@ -437,8 +504,15 @@ export function generateBubbleOption(ctx: ChartGeneratorContext): echarts.EChart
       itemStyle: {
         color: (param: any) => param.data[5] || palette.colors[0],
         opacity: (ctx.bubbleOpacity ?? 85) / 100,
-        borderColor: ctx.bubbleBorderColor || '#333333',
+        borderColor: ctx.bubbleBorderColor || palette.border,
         borderWidth: ctx.bubbleBorderWidth ?? 1.5
+      },
+      emphasis: {
+        scale: 1.25,
+        itemStyle: {
+          shadowBlur: 10,
+          shadowColor: hexToRgba(palette.text, 0.3)
+        }
       },
       label: labelConfig
     });
@@ -601,6 +675,8 @@ export function generateBoxplotOption(ctx: ChartGeneratorContext): echarts.EChar
     return [min, q1, median, q3, max];
   });
 
+  const isHorizontal = ctx.boxplotOrientation === 'horizontal';
+
   // Optional Jitter Scatter Overlay
   const jitterScatterData: [number, number, string][] = [];
   if (ctx.boxplotShowScatter) {
@@ -609,12 +685,14 @@ export function generateBoxplotOption(ctx: ChartGeneratorContext): echarts.EChar
       pList.forEach(p => {
         const val = extractNumericalValue(p, numFieldY);
         const jitter = (Math.random() - 0.5) * 0.3;
-        jitterScatterData.push([cIdx + jitter, val, p.Title || p.Paper_ID]);
+        if (isHorizontal) {
+          jitterScatterData.push([val, cIdx + jitter, p.Title || p.Paper_ID]);
+        } else {
+          jitterScatterData.push([cIdx + jitter, val, p.Title || p.Paper_ID]);
+        }
       });
     });
   }
-
-  const isHorizontal = ctx.boxplotOrientation === 'horizontal';
 
   return {
     backgroundColor: palette.bg,
@@ -626,9 +704,13 @@ export function generateBoxplotOption(ctx: ChartGeneratorContext): echarts.EChar
       trigger: 'item', 
       formatter: (params: any) => {
         if (params.seriesType === 'scatter') {
-          return `<strong>${params.data[2]}</strong><br/>${numFieldY}: ${params.data[1]}`;
+          const val = isHorizontal ? params.data[0] : params.data[1];
+          return `<strong>${params.data[2]}</strong><br/>${numFieldY}: ${val}`;
         }
-        return `<strong>${params.name}</strong><br/>Min: ${params.data[1]}<br/>Q1: ${params.data[2]}<br/>Median: ${params.data[3]}<br/>Q3: ${params.data[4]}<br/>Max: ${params.data[5]}`;
+        const dataArr = Array.isArray(params.data) ? params.data : [];
+        const [bMin, bQ1, bMed, bQ3, bMax] = dataArr.length >= 6 ? dataArr.slice(1) : dataArr;
+        const name = params.name || categories[params.dataIndex] || '';
+        return `<strong>${name}</strong><br/>Min: ${bMin ?? 0}<br/>Q1: ${bQ1 ?? 0}<br/>Median: ${bMed ?? 0}<br/>Q3: ${bQ3 ?? 0}<br/>Max: ${bMax ?? 0}`;
       } 
     },
     grid: resolveUniversalGrid(ctx, { left: 50, right: 50, top: showLegend ? 100 : 70, bottom: 50 }),
@@ -648,14 +730,36 @@ export function generateBoxplotOption(ctx: ChartGeneratorContext): echarts.EChar
         type: 'boxplot' as const,
         data: boxData,
         boxWidth: [10, ctx.boxplotBoxWidth ?? 30],
-        itemStyle: { borderColor: palette.colors[0], borderWidth: 2 }
+        itemStyle: { 
+          color: ctx.boxplotFillColor || hexToRgba(palette.colors[0], 0.22),
+          borderColor: ctx.boxplotBorderColor || palette.colors[0], 
+          borderWidth: 2 
+        },
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 8,
+            shadowColor: hexToRgba(palette.colors[0], 0.35)
+          }
+        }
       },
       ...(ctx.boxplotShowScatter ? [{
         name: 'Individual Studies',
         type: 'scatter' as const,
         data: jitterScatterData,
         symbolSize: 6,
-        itemStyle: { color: palette.colors[1] || '#f59e0b', opacity: 0.6 }
+        itemStyle: { 
+          color: palette.accent || palette.colors[1] || '#f59e0b', 
+          opacity: 0.75,
+          borderColor: palette.bg,
+          borderWidth: 1
+        },
+        emphasis: {
+          scale: 1.4,
+          itemStyle: {
+            shadowBlur: 6,
+            shadowColor: hexToRgba(palette.accent || palette.colors[1] || '#f59e0b', 0.5)
+          }
+        }
       }] : [])
     ]
   };

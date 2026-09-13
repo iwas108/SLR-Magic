@@ -100,9 +100,9 @@ export function optimizeSlotConfig(
           config.pieRadiusRatio = 64;
           config.pieLabelWidth = 140;
         }
-      } else if (uniqueCategoryCount > 8) {
+      } else if (uniqueCategoryCount > 15 && currentConfig.limitCategories === undefined) {
         config.limitCategories = true;
-        config.maxCategoriesCount = 7;
+        config.maxCategoriesCount = 12;
         config.legendPosition = 'right';
         config.legendFormat = 'name_count_percent';
         config.pieLabelPlacement = 'inside';
@@ -151,9 +151,9 @@ export function optimizeSlotConfig(
         config.barGap = 12;
       }
 
-      if (uniqueCategoryCount > 15 && !config.limitCategories) {
+      if (uniqueCategoryCount > 20 && currentConfig.limitCategories === undefined) {
         config.limitCategories = true;
-        config.maxCategoriesCount = 12;
+        config.maxCategoriesCount = 15;
       }
       break;
     }
@@ -196,9 +196,9 @@ export function optimizeSlotConfig(
         config.barYAxisFontSize = 11;
       }
 
-      if (uniqueCategoryCount > 15 && !config.limitCategories) {
+      if (uniqueCategoryCount > 20 && currentConfig.limitCategories === undefined) {
         config.limitCategories = true;
-        config.maxCategoriesCount = 12;
+        config.maxCategoriesCount = 15;
       }
       break;
     }
@@ -217,9 +217,9 @@ export function optimizeSlotConfig(
         config.labelRotation = 0;
       }
 
-      if (uniqueCategoryCount > 15 && !config.limitCategories) {
+      if (uniqueCategoryCount > 20 && currentConfig.limitCategories === undefined) {
         config.limitCategories = true;
-        config.maxCategoriesCount = 12;
+        config.maxCategoriesCount = 15;
       }
       break;
     }

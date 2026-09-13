@@ -43,10 +43,10 @@ export function useVisualizerPresets(params: {
 }) {
   const { layout, config, style, camera } = params;
 
-  // Export Unified Multi-Block v3.0 JSON preset
-  const handleExportPreset = useCallback(() => {
+  // Generate Unified Multi-Block v3.0 JSON preset payload object
+  const getCurrentPresetPayload = useCallback((): VisualizerPresetPayload => {
     const globalStyle = style.getGlobalStyleConfig(layout.layoutMode);
-    const presetObj: VisualizerPresetPayload = {
+    return {
       version: '3.0',
       exportedAt: new Date().toISOString(),
       layoutMode: layout.layoutMode,
@@ -61,7 +61,11 @@ export function useVisualizerPresets(params: {
       fitOffsetY: camera.fitOffsetY,
       containerPadding: camera.containerPadding
     };
+  }, [layout, config, style, camera]);
 
+  // Export Unified Multi-Block v3.0 JSON preset
+  const handleExportPreset = useCallback(() => {
+    const presetObj = getCurrentPresetPayload();
     const jsonStr = JSON.stringify(presetObj, null, 2);
     const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -70,33 +74,28 @@ export function useVisualizerPresets(params: {
     a.download = `slr-visualizer-preset-${layout.layoutMode}-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [layout, config, style, camera]);
+  }, [getCurrentPresetPayload, layout.layoutMode]);
 
-  // Import JSON preset with automatic legacy v1/v2 schema migration
-  const handleImportPreset = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const parsed: VisualizerPresetPayload = JSON.parse(evt.target?.result as string);
+  // Load preset payload with automatic legacy v1/v2 schema migration
+  const loadPresetPayload = useCallback((parsed: any) => {
+    if (!parsed || typeof parsed !== 'object') return;
 
-        if (parsed.version === '3.0' && parsed.slots) {
-          // Hydrate v3.0 Multi-Block preset
-          if (parsed.layoutMode) {
-            layout.setLayoutMode(parsed.layoutMode);
-          }
-          if (parsed.globalStyle) {
-            style.setGlobalStyleConfig(parsed.globalStyle);
-          }
-          const mergedSlots: Record<SlotId, SlotConfig> = {
-            slot_a: { ...createDefaultSlotConfig('slot_a'), ...(parsed.slots.slot_a || {}) },
-            slot_b: { ...createDefaultSlotConfig('slot_b'), ...(parsed.slots.slot_b || {}) },
-            slot_c: { ...createDefaultSlotConfig('slot_c'), ...(parsed.slots.slot_c || {}) },
-            slot_d: { ...createDefaultSlotConfig('slot_d'), ...(parsed.slots.slot_d || {}) }
-          };
-          config.setAllSlotsConfig(mergedSlots);
-        } else {
+    if (parsed.version === '3.0' && parsed.slots) {
+      // Hydrate v3.0 Multi-Block preset
+      if (parsed.layoutMode) {
+        layout.setLayoutMode(parsed.layoutMode);
+      }
+      if (parsed.globalStyle) {
+        style.setGlobalStyleConfig(parsed.globalStyle);
+      }
+      const mergedSlots: Record<SlotId, SlotConfig> = {
+        slot_a: { ...createDefaultSlotConfig('slot_a'), ...(parsed.slots.slot_a || {}) },
+        slot_b: { ...createDefaultSlotConfig('slot_b'), ...(parsed.slots.slot_b || {}) },
+        slot_c: { ...createDefaultSlotConfig('slot_c'), ...(parsed.slots.slot_c || {}) },
+        slot_d: { ...createDefaultSlotConfig('slot_d'), ...(parsed.slots.slot_d || {}) }
+      };
+      config.setAllSlotsConfig(mergedSlots);
+    } else {
           // Legacy v1/v2 single-chart preset migration into Slot A
           layout.setLayoutMode('single');
           
@@ -437,15 +436,28 @@ export function useVisualizerPresets(params: {
         if (typeof parsed.fitOffsetX === 'number' && camera.setFitOffsetX) camera.setFitOffsetX(parsed.fitOffsetX);
         if (typeof parsed.fitOffsetY === 'number' && camera.setFitOffsetY) camera.setFitOffsetY(parsed.fitOffsetY);
         if (typeof parsed.containerPadding === 'number' && camera.setContainerPadding) camera.setContainerPadding(parsed.containerPadding);
+  }, [layout, config, style, camera]);
+
+  // Import JSON preset with automatic legacy v1/v2 schema migration
+  const handleImportPreset = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const parsed = JSON.parse(evt.target?.result as string);
+        loadPresetPayload(parsed);
       } catch (err) {
         alert('Invalid preset JSON file format.');
       }
     };
     reader.readAsText(file);
-  }, [layout, config, style, camera]);
+  }, [loadPresetPayload]);
 
   return {
     handleExportPreset,
-    handleImportPreset
+    handleImportPreset,
+    getCurrentPresetPayload,
+    loadPresetPayload
   };
 }

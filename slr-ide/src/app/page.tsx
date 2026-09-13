@@ -28,6 +28,7 @@ import { usePapers } from '@/hooks/usePapers';
 import { usePipeline } from '@/hooks/usePipeline';
 import { useCalibration } from '@/hooks/useCalibration';
 import { useManualScreening } from '@/hooks/useManualScreening';
+import { subscribeSyncChannel } from '@/lib/sync-utils';
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState('dashboard');
@@ -62,6 +63,7 @@ export default function DashboardPage() {
   // Cohort Table Visualizer state
   const [isCohortVisualizerOpen, setIsCohortVisualizerOpen] = useState(false);
   const [isCohortLlmContextBuilderOpen, setIsCohortLlmContextBuilderOpen] = useState(false);
+  const [cohortSavedChartsCount, setCohortSavedChartsCount] = useState<number>(0);
 
   const showToast = useCallback((message: string, type: 'success' | 'error' | 'warning' | 'info' = 'info') => {
     const id = Date.now() + Math.random();
@@ -247,6 +249,31 @@ export default function DashboardPage() {
     };
   }, [activeProject, openProjectSettings]);
 
+  // Load saved charts count for cohort visualizer badge
+  useEffect(() => {
+    if (!activeProjectId) return;
+    let isMounted = true;
+    const loadCount = async () => {
+      try {
+        const res = await fetch(`/api/charts?projectId=${encodeURIComponent(String(activeProjectId))}`);
+        const data = await res.json();
+        if (isMounted && data.success && Array.isArray(data.charts)) {
+          setCohortSavedChartsCount(data.charts.length);
+        }
+      } catch (e) {}
+    };
+    loadCount();
+    const unsub = subscribeSyncChannel((type) => {
+      if (type === 'SYNC_CHARTS') {
+        loadCount();
+      }
+    });
+    return () => {
+      isMounted = false;
+      unsub();
+    };
+  }, [activeProjectId]);
+
   const lastLoadedProjectRef = useRef<any>(null);
 
   // Multi-Tab Synchronization: Automatically update the active form data if modified in another tab
@@ -354,7 +381,12 @@ export default function DashboardPage() {
                 className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-lg shadow-sm flex items-center gap-1.5 transition-all shrink-0 cursor-pointer hover:scale-105 active:scale-95"
               >
                 <BarChart2 className="w-3.5 h-3.5" />
-                Visualize Cohort
+                <span>Visualize Cohort</span>
+                {cohortSavedChartsCount > 0 && (
+                  <span className="px-1.5 py-0.2 rounded-full bg-white/25 text-white text-[10px] font-mono font-bold" title={`${cohortSavedChartsCount} saved charts in database`}>
+                    {cohortSavedChartsCount}
+                  </span>
+                )}
               </button>
 
               <button

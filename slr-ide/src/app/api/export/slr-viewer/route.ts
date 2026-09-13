@@ -1866,11 +1866,23 @@ export async function GET(request: Request) {
           reports_sought: dbReportsSought,
           reports_not_retrieved: dbReportsNotRetrieved,
           reports_assessed_stage2: Math.max(0, dbReportsSought - dbReportsNotRetrieved),
-          stage2_excluded: 774,
+          stage2_excluded: Object.values(dbReportsExcludedStage2).reduce((sum, item) => sum + item.total, 0),
           stage3_excluded: dbStage3Cumulative + dbStage3FatalFlaw,
           final_included: totalIncludedStudies
         }
       },
+      saved_charts: (() => {
+        try {
+          return db.prepare(`
+            SELECT id, project_id, title, description, chart_type, layout_mode, config_payload, created_at, updated_at
+            FROM saved_charts
+            WHERE (project_id = ? OR CAST(project_id AS TEXT) = CAST(? AS TEXT))
+            ORDER BY updated_at DESC
+          `).all(resolvedProjectId, resolvedProjectId) as any[];
+        } catch (e) {
+          return [];
+        }
+      })(),
       final_cohort: {
         papers: processedPapers,
         umbrellanizer_mappings: umbrellanizerMappings,

@@ -641,5 +641,30 @@ Stores paper-level AI predictions, gold standard comparison, and discrepancy bre
 | `raw_response` | TEXT | | Raw API response |
 | `created_at` | TEXT | NOT NULL | ISO datetime |
 
+---
+
+### Table: `saved_charts`
+Stores FAIR-compliant, database-persisted scientific visualizations and multi-block chart studio configurations. Replaces legacy JSON imports/exports with centralized, project-isolated storage while supporting legacy preset migration.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `id` | TEXT | PRIMARY KEY | Unique UUID v4 for the saved chart configuration |
+| `project_id` | TEXT | NOT NULL | Foreign key reference to `projects(id)` |
+| `title` | TEXT | NOT NULL | Human-readable chart title / label |
+| `description` | TEXT | | Optional contextual description or publication notes |
+| `chart_type` | TEXT | NOT NULL | Primary chart archetype (e.g. `bar_vertical`, `sankey`, `sunburst`, `treemap`, `radar`) |
+| `layout_mode` | TEXT | NOT NULL DEFAULT 'single' | Studio canvas composition (`single`, `dual_horizontal`, `dual_vertical`, `tri_top_two_bottom`, `quad_grid`) |
+| `config_payload` | TEXT | NOT NULL | Complete serialized v3.0 `VisualizerPresetPayload` JSON object |
+| `created_at` | DATETIME | DEFAULT CURRENT_TIMESTAMP | ISO 8601 creation timestamp |
+| `updated_at` | DATETIME | DEFAULT CURRENT_TIMESTAMP | ISO 8601 last modification timestamp |
+
+**Foreign Keys**:
+*   `FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE`
+
+**Indexes**:
+*   `idx_saved_charts_project`: ON `saved_charts(project_id)`
+*   `idx_saved_charts_type`: ON `saved_charts(chart_type)`
+
+
 
 

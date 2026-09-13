@@ -1,5 +1,5 @@
 import type * as echarts from 'echarts';
-import { getNodeColor, hexToRgba } from '../utils/colorUtils';
+import { getNodeColor, hexToRgba, createVerticalGradient, createHorizontalGradient, adjustColorShade, resolvePaletteAccent, resolvePaletteSecondary } from '../utils/colorUtils';
 import { 
   getFieldValue, 
   getMappedFieldValue, 
@@ -9,6 +9,7 @@ import {
   formatVariableDisplayName
 } from '../utils/dataExtractor';
 import { calculateCohortVariableMetrics, calculateHareHamiltonPercentages } from '@/lib/services/cohort-metrics';
+import { getStageDominantExtractedDataStr, getStageDominantQualityAssessmentStr } from '@/lib/services/taxonomy-resolver';
 import { formatLegendLabel, type ChartGeneratorContext } from './types';
 import { formatMetricDisplay } from '../utils/formatterUtils';
 
@@ -158,12 +159,12 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
     radarTargetValue = 100,
     radarTargetLineStyle = 'dashed',
     radarTargetLineWidth = 2,
-    radarTargetColor = '#d9534f',
+    radarTargetColor = ctx.radarTargetColor || resolvePaletteAccent(palette, '#d97706'),
     radarTargetAreaOpacity = 8,
     radarBaselineName = 'Empirical Cohort Baseline (n={n})',
     radarBaselineColor,
     radarTagShareName = 'Tag Share (% of Disclosed Tags, N={N})',
-    radarTagShareColor = '#c62828',
+    radarTagShareColor = ctx.radarTagShareColor || resolvePaletteSecondary(palette, '#0284c7'),
     radarTagShareLineStyle = 'dashed',
     radarTagShareLineWidth = 2,
     radarTagShareAreaOpacity = 12,
@@ -182,6 +183,7 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
     splitMultiValues, 
     excludeEmpty,
     customCategoryMap,
+    levelCustomGroups: ctx.levelCustomGroups,
     levelCustomGroupLinks,
     sankeyFields,
     primaryField
@@ -189,13 +191,8 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
 
   // Helper for splitArea progressive depth styling
   const getSplitAreaColors = () => {
-    if (radarSplitAreaTheme === 'none' || ctx.radarSplitArea === false) {
-      return undefined;
-    }
-    if (radarSplitAreaTheme === 'custom') {
-      const c1 = (ctx.radarSplitAreaColor1 && ctx.radarSplitAreaColor1.trim() !== '') ? ctx.radarSplitAreaColor1 : palette.bg;
-      const c2 = (ctx.radarSplitAreaColor2 && ctx.radarSplitAreaColor2.trim() !== '') ? ctx.radarSplitAreaColor2 : hexToRgba(palette.text, 0.05);
-      return [c1, c2];
+    if (radarSplitAreaTheme === 'none') {
+      return ['transparent'];
     }
     if (radarSplitAreaTheme === 'solid') {
       return [hexToRgba(palette.text, 0.04)];
@@ -204,7 +201,7 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
       return [palette.bg, hexToRgba(palette.text, 0.03)];
     }
     // 'stepped' - 5-step progressive gradient
-    const isDarkBg = palette.bg && (palette.bg.startsWith('#0') || palette.bg.startsWith('#1') || palette.bg.startsWith('#2') || palette.bg === 'black');
+    const isDarkBg = Boolean(palette.isDark || (palette.bg && (palette.bg.startsWith('#0') || palette.bg.startsWith('#1') || palette.bg.startsWith('#2') || palette.bg === 'black')));
     if (isDarkBg) {
       return [
         'rgba(255, 255, 255, 0.015)',
@@ -214,7 +211,14 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
         'rgba(255, 255, 255, 0.095)'
       ];
     }
-    return ['#fbfbfb', '#f4f6f8', '#edf1f5', '#e4e9ef', '#dbe2ea'];
+    const bg = palette.bg || '#ffffff';
+    return [
+      bg,
+      adjustColorShade(bg, -0.015),
+      adjustColorShade(bg, -0.03),
+      adjustColorShade(bg, -0.05),
+      adjustColorShade(bg, -0.07)
+    ];
   };
 
   const effectiveAxisNameFontSize = ctx.radarAxisNameFontSize !== undefined
@@ -471,7 +475,7 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
     const prevalenceSeriesName = interpolateTokens(radarBaselineName || 'Paper Prevalence (% of Studies, n={n})');
     const tagShareSeriesName = interpolateTokens(radarTagShareName || 'Tag Share (% of Disclosed Tags, N={N})');
     const prevalenceColor = radarBaselineColor || palette.colors[0] || '#1b5e20';
-    const tagShareColor = radarTagShareColor || '#c62828';
+    const tagShareColor = radarTagShareColor || palette.accent || palette.colors[1] || '#c62828';
 
     const seriesData: any[] = [
       {
@@ -481,7 +485,7 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
         symbolSize: ctx.radarBaselineSymbol === 'none' ? 0 : (ctx.radarBaselineSymbolSize ?? 6),
         smooth: ctx.radarSmooth === true ? 0.35 : false,
         label: {
-          show: ctx.radarShowDataLabels === true,
+          show: ctx.radarShowDataLabels === true || ctx.showDataLabels === true,
           formatter: (params: any) => formatRadarDataLabel(params.value),
           position: ctx.radarDataLabelPosition || 'top',
           color: (ctx.radarDataLabelColor && ctx.radarDataLabelColor.trim() !== '') ? ctx.radarDataLabelColor : palette.text,
@@ -500,8 +504,8 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
         },
         itemStyle: {
           color: prevalenceColor,
-          borderColor: ctx.radarBaselineSymbolBorderColor || undefined,
-          borderWidth: ctx.radarBaselineSymbolBorderWidth ?? 0
+          borderColor: ctx.radarBaselineSymbolBorderColor || palette.bg,
+          borderWidth: ctx.radarBaselineSymbolBorderWidth ?? 1.5
         }
       },
       {
@@ -511,7 +515,7 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
         symbolSize: radarTagShareSymbol === 'none' ? 0 : (radarTagShareSymbolSize ?? 5),
         smooth: ctx.radarTagShareSmooth === true ? 0.35 : false,
         label: {
-          show: ctx.radarShowDataLabels === true,
+          show: ctx.radarShowDataLabels === true || ctx.showDataLabels === true,
           formatter: (params: any) => formatRadarDataLabel(params.value),
           position: ctx.radarDataLabelPosition || 'bottom',
           color: (ctx.radarDataLabelColor && ctx.radarDataLabelColor.trim() !== '') ? ctx.radarDataLabelColor : palette.text,
@@ -527,7 +531,9 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
           color: hexToRgba(tagShareColor, (radarTagShareAreaOpacity ?? 12) / 100)
         },
         itemStyle: {
-          color: tagShareColor
+          color: tagShareColor,
+          borderColor: palette.bg,
+          borderWidth: 1.5
         }
       }
     ];
@@ -676,10 +682,7 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
     if (targetVars.length === 0) {
       const extKeysSet = new Set<string>();
       papers.forEach(p => {
-        const isManualDominant = (p.manual_stage || 0) >= (p.ai_stage || 0);
-        const extStr = isManualDominant
-          ? (p.manual_extracted_data || p.ai_extracted_data || '')
-          : (p.ai_extracted_data || p.manual_extracted_data || '');
+        const extStr = getStageDominantExtractedDataStr(p);
         if (extStr) {
           try {
             const parsed = typeof extStr === 'string' ? JSON.parse(extStr) : extStr;
@@ -780,7 +783,7 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
     const targetSeriesName = radarTargetName || 'Horticultural Requirement Target';
     const baselineSeriesName = (radarBaselineName || 'Empirical Cohort Baseline (n={n})').replace('{n}', String(totalCohort));
     const baselineColor = radarBaselineColor || palette.colors[0] || '#0275d8';
-    const effectiveTargetColor = radarTargetColor || '#d9534f';
+    const effectiveTargetColor = radarTargetColor || resolvePaletteAccent(palette, '#d97706');
 
     const seriesData: any[] = [];
 
@@ -820,7 +823,7 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
       symbolSize: ctx.radarBaselineSymbol === 'none' ? 0 : (ctx.radarBaselineSymbolSize ?? 6),
       smooth: ctx.radarSmooth === true ? 0.35 : false,
       label: {
-        show: ctx.radarShowDataLabels === true,
+        show: ctx.radarShowDataLabels === true || ctx.showDataLabels === true,
         formatter: (params: any) => formatRadarDataLabel(params.value),
         position: ctx.radarDataLabelPosition || 'top',
         color: (ctx.radarDataLabelColor && ctx.radarDataLabelColor.trim() !== '') ? ctx.radarDataLabelColor : palette.text,
@@ -950,10 +953,7 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
   // --- MODE 2: QUALITY ASSESSMENT (QA) BREAKDOWN (LEGACY) ---
   const qaKeysSet = new Set<string>();
   papers.forEach(p => {
-    const isManualDominant = (p.manual_stage || 0) >= (p.ai_stage || 0);
-    const qaStr = isManualDominant
-      ? (p.manual_quality_assessment || p.ai_quality_assessment || '')
-      : (p.ai_quality_assessment || p.manual_quality_assessment || '');
+    const qaStr = getStageDominantQualityAssessmentStr(p);
     if (qaStr) {
       try {
         const parsed = typeof qaStr === 'string' ? JSON.parse(qaStr) : qaStr;
@@ -968,10 +968,7 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
   const keysList = qaKeysSet.size > 0 ? Array.from(qaKeysSet).sort() : ['QA1', 'QA2', 'QA3', 'QA4', 'QA5', 'QA6', 'QA7', 'QA8'];
 
   const getQaValue = (p: any, key: string): number => {
-    const isManualDominant = (p.manual_stage || 0) >= (p.ai_stage || 0);
-    const qaStr = isManualDominant
-      ? (p.manual_quality_assessment || p.ai_quality_assessment || '')
-      : (p.ai_quality_assessment || p.manual_quality_assessment || '');
+    const qaStr = getStageDominantQualityAssessmentStr(p);
     if (!qaStr) return 0;
     try {
       const parsed = typeof qaStr === 'string' ? JSON.parse(qaStr) : qaStr;
@@ -1053,7 +1050,7 @@ export function generateRadarOption(ctx: ChartGeneratorContext): echarts.ECharts
       symbolSize: ctx.radarBaselineSymbol === 'none' ? 0 : (ctx.radarBaselineSymbolSize ?? 6),
       symbol: ctx.radarBaselineSymbol || 'circle',
       label: {
-        show: ctx.radarShowDataLabels === true,
+        show: ctx.radarShowDataLabels === true || ctx.showDataLabels === true,
         formatter: (params: any) => formatRadarDataLabel(params.value),
         position: ctx.radarDataLabelPosition || 'top',
         color: (ctx.radarDataLabelColor && ctx.radarDataLabelColor.trim() !== '') ? ctx.radarDataLabelColor : palette.text,
@@ -1128,6 +1125,8 @@ export function generateFunnelOption(ctx: ChartGeneratorContext): echarts.EChart
     ctx.otherCategoryLabel || 'Other'
   );
 
+  const sortMode = ctx.funnelSort || 'descending';
+
   const funnelData = Array.from(activeCountsMap.entries()).map(([cat, pList], idx) => {
     const tagCount = pList.length;
     const uniquePaperIds = new Set(pList.map(p => p.Paper_ID || p.id || p.title || p.Title || p));
@@ -1135,7 +1134,8 @@ export function generateFunnelOption(ctx: ChartGeneratorContext): echarts.EChart
     const realVal = computeMetricValue(pList, metricMode, papers.length, totalExtractedTags);
     const manualVal = manualCategoryValues[cat];
     const val = (enableManualOverrides && manualVal !== undefined) ? manualVal : realVal;
-    const color = customSliceColors[cat] || getNodeColor(cat, undefined, idx, palette.colors, customSliceColors);
+    const baseColor = customSliceColors[cat] || getNodeColor(cat, undefined, idx, palette.colors, customSliceColors);
+    const color = createVerticalGradient(baseColor, 1, 0.84);
     const prevalencePct = papers.length > 0 ? ((paperCount / papers.length) * 100).toFixed(2) : '0.00';
     const tagPct = totalExtractedTags > 0 ? ((tagCount / totalExtractedTags) * 100).toFixed(2) : '0.00';
 
@@ -1146,12 +1146,20 @@ export function generateFunnelOption(ctx: ChartGeneratorContext): echarts.EChart
       tagCount,
       prevalencePct,
       tagPct,
-      itemStyle: { color }
+      itemStyle: { 
+        color,
+        borderColor: palette.bg,
+        borderWidth: 2
+      }
     };
-  }).sort((a, b) => b.value - a.value);
+  }).sort((a, b) => {
+    if (sortMode === 'ascending') return a.value - b.value;
+    if (sortMode === 'none') return 0;
+    return b.value - a.value;
+  });
 
   const funnelDataMap = new Map(funnelData.map(d => [d.name, d]));
-  const effectiveLabelPosition = (ctx as any).funnelLabelPosition || (ctx.universalLabelPosition === 'outside' || ctx.universalLabelPosition === 'right' || ctx.universalLabelPosition === 'left' ? ctx.universalLabelPosition : 'inside');
+  const effectiveLabelPosition = ctx.funnelLabelPosition || (ctx.universalLabelPosition === 'outside' || ctx.universalLabelPosition === 'right' || ctx.universalLabelPosition === 'left' ? ctx.universalLabelPosition : 'inside');
   const labelFSize = ctx.universalLabelFontSize ?? (ctx.funnelLabelFontSize ?? Math.max(10, fontSize - 1));
   const labelFWeight = (ctx.universalLabelFontWeight || ctx.funnelLabelFontWeight || 'bold') as any;
   const labelFStyle = (ctx.universalLabelFontStyle || ctx.funnelLabelFontStyle || 'normal') as any;
@@ -1277,13 +1285,19 @@ export function generateFunnelOption(ctx: ChartGeneratorContext): echarts.EChart
       right: rightOffset,
       top: topOffset,
       bottom: bottomOffset,
-      sort: 'descending',
+      sort: sortMode,
       funnelAlign: ctx.funnelAlign || 'center',
       gap: ctx.funnelGap ?? 2,
       width: `${100 - (ctx.funnelNeckWidth ? 100 - ctx.funnelNeckWidth : 30)}%`,
       minSize: `${ctx.funnelNeckWidth ?? 30}%`,
       maxSize: '100%',
       label: funnelLabelConfig,
+      emphasis: {
+        itemStyle: {
+          shadowBlur: 10,
+          shadowColor: 'rgba(0, 0, 0, 0.25)'
+        }
+      },
       data: funnelData
     }]
   };
@@ -1303,6 +1317,17 @@ export function generateGaugeOption(ctx: ChartGeneratorContext): echarts.ECharts
   let metricValue = 0;
   const maxTarget = gaugeMaxScale || 100;
   let gaugeTitle = 'Cohort Metric';
+
+  let unitSuffix = '%';
+  if (ctx.gaugeUnit) {
+    if (ctx.gaugeUnit === 'none') unitSuffix = '';
+    else if (ctx.gaugeUnit !== 'auto') unitSuffix = ctx.gaugeUnit;
+    else {
+      unitSuffix = (metricMode === 'avg_citation' || metricMode === 'avg_qa') ? '' : '%';
+    }
+  } else {
+    unitSuffix = (metricMode === 'avg_citation' || metricMode === 'avg_qa') ? '' : '%';
+  }
 
   if (metricMode === 'avg_qa') {
     const sum = papers.reduce((acc, p) => acc + extractNumericalValue(p, 'Overall_QA'), 0);
@@ -1334,14 +1359,34 @@ export function generateGaugeOption(ctx: ChartGeneratorContext): echarts.ECharts
       endAngle: ctx.gaugeEndAngle ?? -45,
       min: 0,
       max: maxTarget,
-      progress: { show: true, width: dialW },
+      splitNumber: ctx.gaugeSplitNumber ?? 5,
+      progress: { 
+        show: true, 
+        width: dialW,
+        itemStyle: {
+          color: createHorizontalGradient(palette.colors[0], 1, 0.85)
+        }
+      },
       axisLine: { lineStyle: { width: dialW, color: [[1, palette.border]] } },
       axisTick: { show: false },
       splitLine: { length: 8, lineStyle: { width: 2, color: palette.text } },
       axisLabel: { fontFamily: font, fontSize: fontSize - 2, color: palette.text, distance: 15 },
-      pointer: { width: ctx.gaugePointerWidth ?? 6 },
+      pointer: { 
+        width: ctx.gaugePointerWidth ?? 6,
+        itemStyle: {
+          color: palette.accent || palette.colors[1] || palette.text
+        }
+      },
       title: { show: true, offsetCenter: [0, '70%'], fontFamily: font, fontSize: fontSize, color: palette.text },
-      detail: { valueAnimation: true, formatter: '{value}%', offsetCenter: [0, '40%'], fontFamily: font, fontSize: fontSize + 6, fontWeight: 'bold', color: palette.text },
+      detail: { 
+        valueAnimation: true, 
+        formatter: unitSuffix ? `{value}${unitSuffix}` : '{value}', 
+        offsetCenter: [0, '40%'], 
+        fontFamily: font, 
+        fontSize: fontSize + 6, 
+        fontWeight: 'bold', 
+        color: palette.text 
+      },
       data: [{ value: metricValue, name: gaugeTitle }]
     }]
   };
@@ -1427,10 +1472,19 @@ export function generateGraphOption(ctx: ChartGeneratorContext): echarts.ECharts
   const primLabel = formatVariableDisplayName(primaryField);
   const secLabel = formatVariableDisplayName(secondaryField);
 
+  const baseNodeSize = ctx.graphNodeSize ?? 20;
+  const isDraggable = ctx.graphDraggable !== false;
+
   const graphNodes = Array.from(nodesMap.values()).map(n => ({
     name: n.name,
     category: n.category,
-    symbolSize: 20
+    symbolSize: baseNodeSize,
+    itemStyle: {
+      borderColor: palette.bg,
+      borderWidth: 1.5,
+      shadowBlur: 6,
+      shadowColor: 'rgba(0, 0, 0, 0.12)'
+    }
   }));
 
   const graphLinks = Array.from(linksMap.entries()).map(([k, val]) => {
@@ -1450,6 +1504,7 @@ export function generateGraphOption(ctx: ChartGeneratorContext): echarts.ECharts
     series: [{
       type: 'graph',
       layout: 'force',
+      draggable: isDraggable,
       force: { 
         repulsion: ctx.graphRepulsion ?? 120, 
         edgeLength: ctx.graphEdgeLength ?? 90,
@@ -1472,6 +1527,16 @@ export function generateGraphOption(ctx: ChartGeneratorContext): echarts.ECharts
         fontSize: Math.max(8, fontSize - 3),
         color: palette.subtext || palette.text,
         formatter: (p: any) => `${p.data?.value ?? ''}`
+      },
+      emphasis: {
+        focus: 'adjacency',
+        lineStyle: {
+          width: 4
+        },
+        itemStyle: {
+          shadowBlur: 12,
+          shadowColor: 'rgba(0, 0, 0, 0.3)'
+        }
       },
       categories: [{ name: primLabel }, { name: secLabel }],
       data: graphNodes,

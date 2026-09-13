@@ -1,5 +1,6 @@
 import type * as echarts from 'echarts';
 import { getFieldValue, getMappedFieldValue, limitCategoryMap } from '../utils/dataExtractor';
+import { resolvePaletteHeatScale } from '../utils/colorUtils';
 import type { ChartGeneratorContext } from './types';
 import { buildScientificAxisConfig, resolveUniversalGrid } from './axisConfigHelper';
 
@@ -98,7 +99,7 @@ export function generateHeatmapOption(ctx: ChartGeneratorContext): echarts.EChar
   });
 
   const colorMapPresets: Record<string, string[]> = {
-    academic: [palette.bg, palette.colors[2] || '#3b82f6', palette.colors[0] || '#0f172a'],
+    academic: resolvePaletteHeatScale(palette),
     viridis: ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'],
     plasma: ['#0d0887', '#6a00a8', '#b12a90', '#e16462', '#fca636', '#f0f921'],
     thermal: ['#0508b8', '#1e90ff', '#00ff7f', '#ffff00', '#ff4500', '#b22222'],
@@ -150,7 +151,16 @@ export function generateHeatmapOption(ctx: ChartGeneratorContext): echarts.EChar
       type: 'heatmap', 
       data: heatData, 
       itemStyle: {
+        borderWidth: 1,
+        borderColor: palette.bg,
         borderRadius: ctx.heatmapCellRadius ?? 0
+      },
+      emphasis: {
+        itemStyle: {
+          shadowBlur: 8,
+          shadowColor: 'rgba(0, 0, 0, 0.25)',
+          borderColor: palette.accent || palette.colors[0] || palette.text
+        }
       },
       label: { 
         show: showDataLabels, 
@@ -183,12 +193,18 @@ export function generateCalendarOption(ctx: ChartGeneratorContext): echarts.ECha
 
   const dateMap = new Map<string, number>();
   papers.forEach(p => {
-    const dt = p.created_at || p.imported_at;
-    if (dt) {
-      const dateStr = String(dt).substring(0, 10);
+    const rawDate = p.Publication_Date || p.publication_date || p.Date || p.created_at || p.imported_at;
+    if (rawDate) {
+      const dateStr = String(rawDate).trim().substring(0, 10).replace(/\//g, '-');
       if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
         dateMap.set(dateStr, (dateMap.get(dateStr) || 0) + 1);
+      } else if (dateStr.match(/^\d{4}$/)) {
+        const synthDate = `${dateStr}-01-01`;
+        dateMap.set(synthDate, (dateMap.get(synthDate) || 0) + 1);
       }
+    } else if (p.Year && String(p.Year).trim().match(/^\d{4}$/)) {
+      const synthDate = `${String(p.Year).trim()}-01-01`;
+      dateMap.set(synthDate, (dateMap.get(synthDate) || 0) + 1);
     }
   });
 
@@ -208,10 +224,19 @@ export function generateCalendarOption(ctx: ChartGeneratorContext): echarts.ECha
 
   const maxVal = Math.max(...calendarData.map(d => Number(d[1])), 5);
 
+  const colorMapPresets: Record<string, string[]> = {
+    academic: resolvePaletteHeatScale(palette),
+    viridis: ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'],
+    plasma: ['#0d0887', '#6a00a8', '#b12a90', '#e16462', '#fca636', '#f0f921'],
+    thermal: ['#0508b8', '#1e90ff', '#00ff7f', '#ffff00', '#ff4500', '#b22222'],
+    coolwarm: ['#3b4cc0', '#8cb2e9', '#f2f2f2', '#f49a7b', '#b40426']
+  };
+  const activeCalendarMap = colorMapPresets[ctx.calendarColorPreset || 'academic'] || colorMapPresets.academic;
+
   return {
     backgroundColor: palette.bg,
     title: baseTitle,
-    tooltip: { ...baseTooltip, formatter: (p: any) => `${p.data[0]}: ${p.data[1]} papers ingested` },
+    tooltip: { ...baseTooltip, formatter: (p: any) => `${p.data[0]}: ${p.data[1]} papers recorded` },
     visualMap: {
       show: showLegend !== false,
       min: 0,
@@ -222,7 +247,7 @@ export function generateCalendarOption(ctx: ChartGeneratorContext): echarts.ECha
       right: ctx.legendPosition === 'right' ? (ctx.legendDistance ?? 15) : (ctx.legendAlign === 'right' ? 20 : undefined),
       top: ctx.legendPosition === 'top' ? (baseTitle?.show ? 55 : 15) + (ctx.legendDistance ?? 0) : undefined,
       bottom: (!ctx.legendPosition || ctx.legendPosition === 'bottom') ? (ctx.legendDistance ?? 10) : undefined,
-      inRange: { color: [palette.bg, palette.colors[2] || '#3b82f6', palette.colors[0] || '#0f172a'] },
+      inRange: { color: activeCalendarMap },
       textStyle: { 
         fontFamily: font, 
         fontSize: ctx.legendFontSize ?? Math.max(9, fontSize - 2),
@@ -238,7 +263,7 @@ export function generateCalendarOption(ctx: ChartGeneratorContext): echarts.ECha
       right: Math.max(10, (ctx.gridMarginRight !== undefined ? ctx.gridMarginRight : 40) + (ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0) + (ctx.fitOffsetX ?? 0)),
       cellSize: ['auto', ctx.calendarCellSize ?? 14],
       range: effectiveRange,
-      itemStyle: { borderWidth: 1, borderColor: palette.border },
+      itemStyle: { borderWidth: 1, borderColor: palette.bg },
       yearLabel: { show: true, color: palette.text, fontFamily: font },
       dayLabel: { color: palette.text, fontFamily: font },
       monthLabel: { color: palette.text, fontFamily: font }

@@ -5,6 +5,7 @@ import {
   resolveUmbrellanizerValue,
   extractColonPrefixPaths,
   extractPaperFieldValues,
+  getStageDominantQualityAssessmentStr,
   ColonPathHierarchyResult,
   stripParentPrefix,
   TaxonomyOptions
@@ -83,10 +84,7 @@ export function extractNumericalValue(paper: any, numKey: string): number {
     return parseFloat(String(paper.Year ?? 0)) || 0;
   }
   if (numKey === 'Overall_QA') {
-    const isManualDominant = (paper.manual_stage || 0) >= (paper.ai_stage || 0);
-    const qaStr = isManualDominant 
-      ? (paper.manual_quality_assessment || paper.ai_quality_assessment || '') 
-      : (paper.ai_quality_assessment || paper.manual_quality_assessment || '');
+    const qaStr = getStageDominantQualityAssessmentStr(paper);
     if (!qaStr) return 0;
     try {
       const parsed = typeof qaStr === 'string' ? JSON.parse(qaStr) : qaStr;

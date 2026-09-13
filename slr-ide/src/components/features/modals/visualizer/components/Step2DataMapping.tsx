@@ -56,7 +56,8 @@ function renderFieldOptions(availableFields: string[]) {
 
 export function Step2DataMapping() {
   const { props, layout, config, data, workspace } = useVisualizerContext();
-  const { papers, umbrellanizerMap } = props;
+  const { papers: propPapers, umbrellanizerMap } = props;
+  const papers = data.papers || propPapers || [];
   const { layoutMode } = layout;
   const { showLivePreview } = workspace;
   const {
@@ -815,6 +816,47 @@ export function Step2DataMapping() {
 
         {/* Dynamic Real Data Breakdown Table Component */}
         <BreakdownTablePanel />
+
+        {/* Category Truncation & Aggregation Safeguard */}
+        {['bar_vertical', 'bar_horizontal', 'horizontal_bar_scatter', 'stacked_bar', 'clustered_bar', 'pie_donut', 'funnel'].includes(chartType) && (
+          <div className="w-full p-3.5 bg-secondary/20 border border-border/80 rounded-xl space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs font-bold text-foreground block">Category Truncation & Aggregation</span>
+                <span className="text-[10px] text-muted-foreground block">
+                  {limitCategories
+                    ? `Active: Showing top ${maxCategoriesCount || 8} categories, bundling rest into "Other"`
+                    : 'Disabled: Displaying all detected cohort categories without truncation'}
+                </span>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(limitCategories)}
+                  onChange={(e) => setLimitCategories(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-9 h-5 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+              </label>
+            </div>
+
+            {limitCategories && (
+              <div className="grid grid-cols-2 gap-3 pt-2 border-t border-border/60">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-foreground block">Max Top Categories</label>
+                  <input
+                    type="number"
+                    min={2}
+                    max={50}
+                    value={maxCategoriesCount || 8}
+                    onChange={(e) => setMaxCategoriesCount(Math.max(2, parseInt(e.target.value, 10) || 2))}
+                    className="w-full bg-card border border-border rounded-lg px-2.5 py-1 text-xs font-bold text-foreground"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Streamlined Extraction & Cell Treatment Controls */}
         <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-secondary/20 border border-border/80 rounded-xl">

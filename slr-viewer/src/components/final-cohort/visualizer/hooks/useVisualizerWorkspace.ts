@@ -6,8 +6,25 @@ export function useVisualizerWorkspace(params: {
   currentStep: number;
   setCurrentStep: (step: 1 | 2 | 3 | 4) => void;
   onClose: () => void;
+  cohortScope?: 'full' | 'filtered';
+  setCohortScope?: (scope: 'full' | 'filtered') => void;
+  fullCohortCount?: number;
+  filteredCohortCount?: number;
+  isFiltered?: boolean;
+  isLoadingDbCohort?: boolean;
 }) {
-  const { isOpen, currentStep, setCurrentStep, onClose } = params;
+  const {
+    isOpen,
+    currentStep,
+    setCurrentStep,
+    onClose,
+    cohortScope = 'full',
+    setCohortScope = () => {},
+    fullCohortCount = 0,
+    filteredCohortCount = 0,
+    isFiltered = false,
+    isLoadingDbCohort = false
+  } = params;
 
   // 1. Fullscreen mode
   const [isFullscreen, setIsFullscreenState] = useState<boolean>(() => {
@@ -152,6 +169,12 @@ export function useVisualizerWorkspace(params: {
     inspectedSlot,
     setInspectedSlot,
     showShortcutsModal,
-    setShowShortcutsModal
+    setShowShortcutsModal,
+    cohortScope,
+    setCohortScope,
+    fullCohortCount,
+    filteredCohortCount,
+    isFiltered,
+    isLoadingDbCohort
   };
 }

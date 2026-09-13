@@ -2,7 +2,272 @@
 
 All notable changes, refactoring milestones, and feature additions to `slr-viewer/` are documented in this log.
 
-## [#017] [2026-09-09] - Raw Extracted Value Parity in Final Cohort Cell Value Popover
+## [#031] [2026-09-12] - Visualizer Studio: Foolproof Scientific Auto-Newline, Protocol-Aware Word Wrap & Atomic Token Protection
+
+### Bug Fixes & Text Engine Refactoring
+- **Atomic Token Classifier (`isAtomicSlashToken`)**:
+  - Prevented premature or broken line wrapping of wireless/network protocols (e.g. `Wi-Fi WLAN (802.11 b/g/ax)` was splitting into `b/`, `g/`, `ax)`).
+  - Protected domain patterns: `b/g/n`, `a/b/g/n/ac/ax`, `802.11b/g/n`, `TCP/IP`, `IPv4/IPv6`, `2G/3G/4G/5G`, `km/h`, `bits/s`, `samples/s`, `V/m`, `mW/cm2`, `w/`, `w/o`, `and/or`, `N/A`, `I/O`, `A/D`, `1/2`, `24/7`, and any slash compound where sub-tokens $\le 3$ characters.
+- **Multi-Tier Semantic Word Wrapping Engine (`wrapAxisLabelText`)**:
+  - Replaced naive unconditional `text.split('/')` with intelligent greedy word wrap.
+  - Preserved explicit `\n` breaks.
+  - Isolated trailing parenthetical qualifiers (e.g. `(802.11 b/g/ax)`, `(SVM)`, `(Mbps)`) so secondary specifications wrap as independent coherent blocks.
+  - Implemented lazy compound word splitting for terms like `Agriculture/Horticulture` and `Communication-Enabled`, splitting only when exceeding line capacity and without injecting artificial spaces.
+  - Added overflow tolerance guard to avoid 1-character orphan lines and natural numerical sub-splitting for standards like `802.11b/g/n`.
+- **Verification**:
+  - `npm run typecheck`: 0 errors.
+  - `npm run build`: Vite production build passed cleanly in 2.66s.
+
+---
+
+## [#030] [2026-09-12] - Visualizer Studio: Mathematical Category Span Resolution, 100% Y-Axis Title Visibility & Extended Typography Customization
+
+### Bug Fixes & Publication Layout Quality
+- **Exact Category Label Span Calculation (`estimateCategoryLabelSpan`)**:
+  - Resolved root cause of invisible Y-axis title ("RQ2 Operational Domain") on Horizontal Bar & Scatter and other horizontal charts when set to "Middle / Center" with compact margins.
+  - Implemented `estimateCategoryLabelSpan` to dynamically measure the true rendered text width across multi-line category labels instead of assuming a constant 148px clearance.
+  - Formulated title distance `titleGap = labelSpan + rawTitleGap + halfTitleThickness - offsetX`, ensuring the title is placed right at the user's configured Gap from the leftmost category label.
+- **Safe Margin Clearance Clamp (`resolveUniversalGrid`)**:
+  - Enforced `minRequiredTitleSpace = Math.round(titleThicknessY + titleGapY + 14)` on `grid.left`, mathematically guaranteeing that the Y-axis title is never pushed off-canvas into negative coordinates even when left margin is set to 0px.
+- **Extended Axis Title Customization Suite (`ScientificAxisConfigPanel.tsx`, `types.ts`, `defaultConfigs.ts`, `useVisualizerConfig.ts`)**:
+  - Added collapsible Extended Customization panel for both X and Y axis titles.
+  - Introduced Rotation Angle presets (for Y: `90° Standard`, `0° Horizontal`, `270° Inverted`, `-90°`; for X: `0°`, `45°`, `90°`, `-45°`) and interactive `-180°` to `180°` slider.
+  - Added Title Alignment (`Left`, `Center`, `Right`), dedicated Title Color Picker, Title Prefix/Suffix inputs, and Micro-Position Offsets ($X$ and $Y$ sliders from -60px to +60px with instant Reset).
+- **Verification**:
+  - `npm run typecheck`: 0 errors.
+  - `npm run build`: Vite production build passed cleanly in 2.61s.
+
+---
+
+## [#029] [2026-09-12] - Visualizer Studio: Fixed Y-Axis Title Visibility for Top/End Location
+
+### Bug Fixes & Publication Layout Quality
+- **Location-Aware Title Gap Calculation (`axisConfigHelper.ts`)**:
+  - Fixed issue where selecting "Top / End" on horizontal charts caused the Y-axis title to disappear off the top of the canvas.
+  - Scoped horizontal label clearance additions solely to `middle` location, allowing `Top / End` and `Bottom / Start` to respect small user gaps (5px–15px) directly.
+  - Added `align: 'right'` and `verticalAlign: 'bottom'` styling for `Top / End` titles, positioning them right above the category labels column.
+- **Verification**:
+  - `npm run typecheck`: 0 errors.
+  - `npm run build`: Vite production build passed cleanly in 2.65s.
+
+---
+
+## [#028] [2026-09-12] - Visualizer Studio: Eliminating False Clearance Offsets to Enable Zero/Compact Left Margins
+
+### Bug Fixes & Publication Layout Quality
+- **Direct Pixel Margins with `containLabel: true` (`axisConfigHelper.ts`, `categoricalBarGenerators.ts`)**:
+  - Removed artificial `190px` clearance minimum on horizontal charts that prevented users from decreasing empty space on the left.
+  - Eliminated legacy percentage scaling on margins $\le 40$, allowing users to slide down to `Left (0px)` or choose compact presets (20px–30px) for tight column layouts.
+  - With `containLabel: true`, ECharts automatically accommodates Y-axis title and labels within the chart bounds, and setting `Left (0px)` places the title flush against canvas padding without unused void.
+- **Verification**:
+  - `npm run typecheck`: 0 errors.
+  - `npm run build`: Vite production build passed cleanly in 4.75s.
+
+---
+
+## [#027] [2026-09-12] - Visualizer Studio: Resolved Grid Margin Unit Collision & Category Label-Title Anti-Collision
+
+### Bug Fixes & Publication Layout Quality
+- **Standardized Pixel-Based Margins (`HorizontalBarScatterConfigPanel.tsx`, `useVisualizerConfig.ts`, `defaultConfigs.ts`)**:
+  - Eliminated unit mismatch where Section 7 margin sliders rendered percentages (`{barGridRight}%`) while storing pixel values (e.g. 324px, 48px).
+  - Converted Left and Right Margins to explicit pixel sliders (`px`) with safe ranges (`60px–400px` for left margin, `20px–240px` for right margin).
+  - Fixed default margin resolution across config hooks to ensure consistent 200px base left clearance.
+- **Category Label & Y-Axis Title Anti-Collision (`axisConfigHelper.ts`, `categoricalBarGenerators.ts`)**:
+  - Guaranteed `minRequiredGap = minLabelClearance + Math.max(16, titleFontSize + 4)`, ensuring the Y-axis title ("RQ2 Operational Domain") never collides or overlaps into category labels.
+  - Automatically resolved category word break artifacts (e.g. "Manufac / t / uring") by restoring proper horizontal drawing clearance.
+- **Verification**:
+  - `npm run typecheck`: 0 errors.
+  - `npm run build`: Vite production build passed cleanly.
+
+---
+
+## [#026] [2026-09-12] - Visualizer Studio: Decoupled Publication Clearance & True Title Movement on Y-Axis Title Gap
+
+### Bug Fixes & Precision Layout
+- **Decoupled Universal Grid Clearance (`axisConfigHelper.ts`, `categoricalBarGenerators.ts`)**:
+  - Fixed bug where sliding Y-Axis Title Gap shifted the entire chart grid across the canvas rather than moving the axis title.
+  - Decoupled `requiredYTitleClearance` from `axisTitleGapY`, basing base grid clearance on category label width (`effectiveLabelWidth + effectiveLabelMargin`) and typography padding.
+- **Bounded Anti-Collision Title Positioning (`axisConfigHelper.ts`)**:
+  - Standardized `nameGap` on horizontal category axes to smoothly offset from category labels and clamp against the canvas left boundary.
+  - Ensures the Y-axis title moves responsively relative to labels while the chart remains anchored in place.
+- **Verification**:
+  - `npm run typecheck`: 0 errors.
+  - `npm run build`: Vite production build passed cleanly.
+
+---
+
+## [#025] [2026-09-12] - Umbrellanized Value & Taxonomy Induction Justification in Final Cohort Modal and Table
+
+### Features & Transparency
+- **Umbrellanized Value & Justification Rendering (`CohortPaperDetailsModal.tsx`)**:
+  - Wired `getUmbrellanizerJustification` from `taxonomy-resolver.ts` to resolve and display taxonomy induction rationales for extracted research questions.
+  - Implemented dual-card display separating **Umbrellanized Value (Canonical Taxonomy)** from **Raw Extracted Literal Token(s)** with monospace token badges.
+  - Added dedicated purple/indigo **Umbrellanizer Taxonomy Justification** card with 1-click copy and arrow mapping (`rawToken → mappedCategory: "justification"`) for multi-token concepts.
+  - Enhanced search filter to scan across Umbrellanizer justifications in addition to variable names, raw tokens, and mapped categories.
+- **Table Cell Hover Transparency (`ClickableCell.tsx`)**:
+  - Connected `traceInfo` justification into `ClickableCell` to render multi-line native tooltips showing Umbrellanized Value, Raw Token, Taxonomy Justification, Extraction Mapping, and Evidence Quote upon cell hover.
+- **Verification**:
+  - `npm run typecheck`: 0 errors.
+  - `npm run build`: Production bundle built cleanly with Vite.
+
+---
+
+## [#024] [2026-09-12] - Final Cohort Detailed Paper Modal Quality Appraisal (QA) Score Calculation & Verbatim Quote Display
+
+### Bug Fixes & Rendering Precision
+- **QA Score Summation & Parsing (`CohortPaperDetailsModal.tsx`)**:
+  - Resolved issue where the Quality Appraisal header badge and modal tab persistently displayed `0 / 8.0` due to `total_score` / `overall_score` not being top-level keys in Scientist Stage 3 evaluation payloads.
+  - Implemented dynamic criterion score parser summing all individual criterion evaluations (`calculatedSum += numVal`), supporting decimal strings (`"1.0"`, `"0.5"`), booleans (`"YES"`, `"TRUE"`), and nested object structures (`criterion.score`, `criterion.value`).
+  - Added multi-level fallback order: explicit total score > calculated dynamic sum > paper summary metadata (`Overall_QA`).
+- **Verbatim Evidence Quotes & Appraisal Reasoning**:
+  - Wired extraction of both rationale (`reasoningTrace[k + '_analysis'] || reasoningTrace[k]`) and verbatim literature evidence quotes (`criterion.exact_quote || criterion.evidence`).
+  - Rendered highlighted evidence quote blockquotes under each evaluated criterion card in the Quality Appraisal tab.
+- **Verification**:
+  - `npm run typecheck`: 0 errors.
+  - `npm run build`: Production bundle built cleanly with Vite.
+
+---
+
+## [#023] [2026-09-12] - Complete 19-Chart Customization Audit, Parameter Wiring & Publication Precision
+
+### Customization Feature Wiring & Academic Aesthetics
+- **Pie / Donut Slice Sorting & Slice Geometry (`pieSort`, `pieStartAngle`, `pieMinAngle`)**:
+  - Added `pieSort` ('desc', 'asc', 'none') dropdown to `PieDonutConfigPanel` allowing users to sort slices deterministically by value or preserve original category order.
+  - Added `pieStartAngle` (0°–360°) and `pieMinAngle` (0°–20°) sliders, preventing small proportion slices from collapsing or overlapping labels.
+  - Wired parameters into `generatePieDonutOption` series configuration.
+- **Continuous Scatter Data Labels & Markers (`scatter`)**:
+  - Wired Universal Data Label controls (`showDataLabels`, `universalLabelPosition`, `universalLabelFontSize`, `universalLabelColor`, `labelFormat`) directly into `generateScatterOption`, allowing points to display title and coordinates.
+- **Categorical Matrix & 3D Bubble Styling (`bubble`)**:
+  - Mode B (Numerical 3D): Wired bubble border styling (`bubbleBorderColor`, `bubbleBorderWidth`) and data labels (`bubbleShowLabels`, `labelFormat`, `bubbleLabelColor`).
+  - Mode A (Categorical Matrix): Synchronized `labelConfig.show` with studio Universal Data Labels toggle (`ctx.showDataLabels !== false`).
+- **Boxplot Distribution Colors (`boxplotFillColor`, `boxplotBorderColor`)**:
+  - Added color pickers to `BoxplotConfigPanel` for custom box fill and border colors.
+  - Wired `boxplotFillColor` and `boxplotBorderColor` to boxplot series `itemStyle` in `generateBoxplotOption`.
+- **Network Graph Interactive Draggability & Node Scale (`graphNodeSize`, `graphDraggable`)**:
+  - Added Base Node Size slider (`graphNodeSize`: 8px–50px) and Draggable Vertices toggle (`graphDraggable`) to `GraphConfigPanel`.
+  - Wired `draggable: ctx.graphDraggable !== false` and dynamic `symbolSize` to `generateGraphOption` force-directed graph series.
+- **Gauge Metric Units & Scale Intervals (`gaugeUnit`, `gaugeSplitNumber`)**:
+  - Added Metric Unit Suffix selector (`gaugeUnit`: Auto, %, cit, pts, papers, none) and Scale Split Intervals slider (`gaugeSplitNumber`: 2–10) to `GaugeConfigPanel`.
+  - Replaced hardcoded `{value}%` detail formatter with dynamic suffix formatting (`avg_citation` and `avg_qa` default to raw units or custom suffixes, while ratios default to `%`).
+- **Calendar Publication Date Extraction & Scientific Color Palettes (`calendarColorPreset`)**:
+  - Overhauled date extraction in `generateCalendarOption` to prioritize `Publication_Date`, `publication_date`, `Date`, and 4-digit `Year` before ingestion timestamps (`created_at`, `imported_at`).
+  - Added Heat Color Theme selector (`calendarColorPreset`) supporting standard scientific colormaps: Academic Blue/Slate, Viridis Scientific, Plasma High-Contrast, Thermal Heatmap, and Cool-Warm Divergent.
+- **Verification**:
+  - `npm run typecheck`: 0 errors.
+  - `npm run build`: Production bundle built cleanly with Vite in 2.54s.
+
+---
+
+## [#022] [2026-09-12] - Fix Vertical Bar Category Legend, Boxplot Tooltip Indexing, Clustered Error Bars, and Line Marker Controls
+
+### Bug Fixes & Rendering Precision
+- **Vertical Bar Category Legend (`generateVerticalBarOption`)**:
+  - Appended zero-radius dummy pie series to Cartesian vertical bar charts to ensure category swatches appear in the ECharts legend when "Show Legend" is toggled.
+  - Bound solid hex `color` to `legendData` swatches to prevent SVG pattern image objects from corrupting the legend icons under academic monochrome hatching mode.
+- **Vertical Bar Grid Step Interval Control (`VerticalBarConfigPanel`)**:
+  - Replaced duplicate `barGap` slider in Section 3 with scientific `barValueInterval` (Grid Step Interval) input.
+- **Boxplot 5-Number Summary Tooltip Indexing Bug (`generateBoxplotOption`)**:
+  - Corrected 1-off array offset in boxplot tooltip formatter that caused Min to display Q1, Q1 to display Median, Median to display Q3, Q3 to display Max, and Max to display `undefined`.
+- **Clustered Bar Error Bars Rendering (`generateClusteredBarOption`)**:
+  - Implemented custom series I-beam error bars with precise lateral cluster offsets (`(sIdx - (seriesCount - 1) / 2) * step`) across both horizontal and vertical orientations.
+- **Trend Line Marker Symbol Selector (`LineConfigPanel`)**:
+  - Added Marker Symbol dropdown to `cohort_trend` mode in addition to simulation mode.
+- **Calendar Legend Visibility in Universal Panel (`UniversalFineTunePanel`)**:
+  - Enabled Legend & Series Keys toolbox for `calendar` charts to configure visualMap continuous scale bars.
+- **Verification**:
+  - `npm run typecheck`: 0 errors.
+  - `npm run build`: Production bundle built cleanly with Vite.
+
+---
+
+## [#021] [2026-09-12] - Full Audit and Wiring of All 19 Chart Customizations in Scientific Visualization Studio
+
+### Bug Fixes & Wiring Parity
+- **Funnel Sorting & Label Placement (`funnelSort`, `funnelLabelPosition`)**:
+  - Added missing `funnelSort` and `funnelLabelPosition` across `SlotConfig`, `DEFAULT_SLOT_CONFIG`, `useVisualizerConfig`, `VisualizerProvider`, `ChartGeneratorContext`, and `BuildChartOptionParams`.
+  - Removed `as any` typing in `FunnelConfigPanel.tsx`, bound label placement, added sorting dropdown, and updated `generateFunnelOption` to sort dataset and apply `sortMode`.
+- **Vertical & Horizontal Bar Chart Error Bars & Texture Hatching**:
+  - Added Academic Texture Hatching (`enableHatchPatterns`) and Scientific Error Bars (`enableErrorBars`, `errorBarType`) controls to `VerticalBarConfigPanel` and `HorizontalBarConfigPanel`.
+  - Implemented `barSorting` ('desc', 'asc', 'none'), `barWidth: ctx.barThickness`, `barCategoryGap: ${ctx.barGap}%`, `borderRadius: [ctx.barBorderRadius, ...]`, target benchmark line (`markLine`), monochrome hatch patterns (`getSeriesPatternStyle`), and custom I-beam error bar series (`computeGroupStatistics`, `getErrorBounds`) in `generateVerticalBarOption`.
+  - Fixed sorting order bug in `generateHorizontalBarOption` (`desc` -> `valB - valA` and `asc` -> `valA - valB` due to inverted Y-axis).
+- **Clustered Bar Chart Hatch Patterns (`clustered_bar`)**:
+  - Fixed series `itemStyle` in `generateClusteredBarOption` to preserve and apply computed monochrome texture hatch pattern styles (`...patternStyle`) and `borderRadius`.
+- **Continuous & Categorical Scatter Customizations (`scatter`)**:
+  - Extended `ScatterConfigPanel` and `generateScatterOption` to wire Point Symbol (`scatterSymbol`: circle, diamond, rect, triangle, roundRect, pin), Point Color (`scatterColor`), Border Color (`scatterBorderColor`), and Border Width (`scatterBorderWidth`).
+- **Horizontal Boxplot Jitter Scatter Coordinates (`boxplot`)**:
+  - Fixed coordinate inverted coordinate bug in `generateBoxplotOption` when `boxplotOrientation === 'horizontal'` so that points correctly map `[val, cIdx + jitter]` to Cartesian axes and tooltip inspects value at `params.data[0]`.
+- **Radar / Spider Chart Data Labels (`radar`)**:
+  - Updated `generateRadarOption` across prevalence, tag share, multi-variable, and QA breakdown series to honor `ctx.showDataLabels === true || ctx.radarShowDataLabels === true`.
+- **Trend Line Marker Symbols (`line`)**:
+  - Fixed cohort trend mode in `generateLineOption` to cleanly bind `symbol: ctx.lineMarkerSymbol || 'circle'`.
+- **Universal Effect Controls & Canvas Margin Scope (`UniversalFineTunePanel`)**:
+  - Updated `hasCartesianAxes` to include `horizontal_bar_scatter`, expanded `hasDataLabels` to include `horizontal_bar_scatter`, `radar`, and `graph`, and enabled Legend and Canvas Layout & Margins toolboxes for `horizontal_bar_scatter`.
+- **Verification**:
+  - Confirmed 0 TypeScript type errors (`npm run typecheck`).
+  - Generated clean production bundle with Vite (`npm run build`).
+
+---
+
+## [#020] [2026-09-12] - Fix Infinite Backend Call Loop on Opening Chart Library Modal
+
+### Bug Fixes & Stability
+- **Reference-Stable Fetch Hooks (`ChartLibraryModal.tsx`)**:
+  - Replaced inline default array parameter `viewerSavedCharts = []` with module-scoped constant `EMPTY_SAVED_CHARTS: SavedChart[] = []` to prevent allocating new array references on each render.
+  - Decoupled `viewerSavedCharts` from `useCallback` dependency array by using `viewerSavedChartsRef = useRef(viewerSavedCharts)` (AGENTS.md Rule 3.3).
+  - Added concurrency guard `isFetchingRef = useRef(false)` preventing overlapping network requests.
+  - Stabilized `fetchCharts` dependencies to purely primitive values `[isOpen, isViewerMode, projectId]`, eliminating recursive infinite `useEffect` executions.
+  - Mirrored `onLoadPreset={presets.loadPresetPayload}` stabilization across `VisualizerHeader.tsx` and `ExportPanel.tsx`.
+- **Verification**:
+  - Confirmed 0 TypeScript type errors (`npm run typecheck`).
+  - Production bundle generated with Vite (`npm run build`, v1.1.32).
+
+---
+
+## [#019] [2026-09-12] - Deep Code Analysis & Hidden Bug Hunt Verification for Scientific Visualization Studio & Inspection Subsystems
+
+### Bug Fixes & Hardening
+- **Offline Chart Deletion Tombstoning (`ChartLibraryModal.tsx`)**:
+  - Eliminated snapshot chart resurrection upon session reload by persisting tombstoned IDs in `localStorage` under `slr_viewer_deleted_charts_${projectId}`.
+  - Filtered tombstoned charts on load, recorded deletions, and removed tombstone if a chart with the same ID is saved anew.
+- **Dexie IndexedDB Session Persistence (`FinalCohortPanel.tsx`)**:
+  - Implemented `handleViewerSaveChart` and `handleViewerDeleteChart` in `FinalCohortPanel.tsx` updating `activeSession.rawData.saved_charts` via `StorageService.updateSession()`.
+  - Updated `schemaValidator.ts` to cleanly preserve and sanitize `saved_charts` array during snapshot ingestion.
+- **Fullscreen Paper Inspection Modal Parity (`CohortPaperDetailsModal.tsx`)**:
+  - Mirrored nested `logic_trace` object unwrapping (`extraction_mapping` and `appraisal_reasoning`).
+  - Added verbatim evidence quote extraction fallback using `extractEvidenceQuote`.
+  - Guarded QA score parsing for string/numeric formats and supported string trace rationales.
+  - Mirrored `"Paper Documentation & Sourced Records"` label and Local PDF status fallback.
+- **Visualizer Studio Mechanics & Navigation Bounds**:
+  - Expanded parameter reset in `UniversalFineTunePanel.tsx` across all 19 chart categories.
+  - Added string ID comparison and strict boundary clamping in `FinalCohortPanel.tsx` paper navigation.
+- **Verification**:
+  - Confirmed 0 TypeScript type errors (`npm run typecheck`).
+  - Generated clean production bundle with Vite (`npm run build`).
+  - Updated `slr-viewer/files.md`.
+
+---
+
+## [#018] [2026-09-12] - FAIR Saved Charts Bundle Parity, Premiere Collapsible Toolboxes & Fullscreen Paper Inspection Modal
+
+### Added & Enhanced
+- **Project-Saved Charts Snapshot Sourcing & Offline Library**:
+  - Implemented 100% offline project-saved charts parity by consuming `activeSession.rawData.saved_charts` in `FinalCohortPanel.tsx` and passing it to `VisualizerModal`.
+  - Added live saved-charts count badge to the `Visualize Cohort` topbar button in `App.tsx` and the `Chart Library` button in `VisualizerHeader.tsx` to alert reviewers when project charts are available.
+  - Enabled `ChartLibraryModal` in viewer mode with offline `localStorage` fallback, 1-click studio hydration, duplicate, delete, and legacy JSON preset import.
+- **Adobe Premiere-Style Collapsible Toolboxes**:
+  - Mirrored `CollapsibleToolbox.tsx` and overhauled `UniversalFineTunePanel.tsx` into 6 modular collapsible toolboxes with live status chips, enable/disable switches (fx toggles), and parameter resets.
+  - Mirrored all 19 chart geometry panels, data label synchronizers, and publication export tools.
+- **Comprehensive Fullscreen Paper Inspection Modal (`CohortPaperDetailsModal.tsx`)**:
+  - Completely dropped legacy "View and copy cell value" and "View extraction logic trace" popovers from `ClickableCell.tsx` and `FinalCohortPanel.tsx`.
+  - Integrated `CohortPaperDetailsModal` triggered via dedicated eye button, clicking paper ID/title, double-clicking rows, or table header button.
+  - Features prominent "Open Cloud PDF" button linking to synced cloud full-text documents, alongside full Abstract card, Bibliographic metadata, Extracted RQs with canonical taxonomy and verbatim quotes, Quality Appraisal breakdown (8/8 criteria), and copyable Raw JSON payload.
+  - Supports keyboard shortcuts (`ArrowLeft`, `ArrowRight`, `Esc`) and fullscreen toggle.
+- **Verification**:
+  - TypeScript typecheck passed with 0 errors (`npm run typecheck`).
+  - Production build compiled cleanly (`vite build`, v1.1.29).
+  - Updated `slr-viewer/files.md`.
+
+---
 
 ### Added & Enhanced
 - **Raw Extracted Value Display in Value Popover (`ClickableCell.tsx`)**:

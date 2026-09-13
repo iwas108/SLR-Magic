@@ -106,51 +106,242 @@ export function formatScientificAxisValue(
 }
 
 /**
+ * Checks whether a token or sub-token with slashes represents an unbreakable
+ * atomic unit such as:
+ * - Wireless/Network protocols: b/g/n, a/b/g/n/ac/ax, 802.11b/g/n, TCP/IP, IPv4/IPv6, 2G/3G/4G/5G, CAN/LIN
+ * - Units of measurement: km/h, m/s, bits/s, samples/s, V/m, mW/cm2, kg/m3, mg/L
+ * - Common abbreviations: w/, w/o, c/o, b/c, a/k/a, and/or, either/or, yes/no, on/off, N/A, I/O, A/D, TX/RX
+ * - Ratios & fractions: 1/2, 3/4, 24/7, 10/100
+ * - Any slash-separated sequence where any segment is <= 3 characters long (e.g. b/g, x/y, dev/prod)
+ */
+export function isAtomicSlashToken(token: string): boolean {
+  const clean = token.replace(/^[([{<"']+|[)\]}>,"'.:;]+$/g, '').trim();
+  if (!clean.includes('/')) return false;
+
+  // 1. Known atomic abbreviations & acronyms
+  if (/^(?:w\/|w\/o|c\/o|b\/c|a\/k\/a|and\/or|either\/or|yes\/no|on\/off|true\/false|n\/a|i\/o|a\/d|d\/a|r\/w|rx\/tx|tx\/rx|p\/n|s\/n|b\/w|ac\/dc|dc\/dc|f\/utp|s\/ftp)$/i.test(clean)) {
+    return true;
+  }
+
+  // 2. Units of measurement
+  if (/^(?:km\/h|m\/s|cm\/s|mm\/s|bit\/s|bits\/s|byte\/s|bytes\/s|sample\/s|samples\/s|packet\/s|packets\/s|msg\/s|msgs\/s|req\/s|trans\/s|v\/m|a\/m|w\/m2|mw\/cm2|db\/m|kg\/m3|g\/cm3|mg\/l|g\/mol|rad\/s|hz\/s|k\/s)$/i.test(clean)) {
+    return true;
+  }
+
+  // Generic unit denominator (e.g. anyWord/s, anyWord/h, anyWord/m)
+  if (/^[a-zA-Z0-9^µ]+\/(?:s|sec|h|hr|m|min|kg|g|mg|l|ml|mol|cm|mm|m2|cm2|m3)$/i.test(clean)) {
+    return true;
+  }
+
+  // 3. Numbers, fractions, dates, numeric standards (e.g. 24/7, 1/2, 2023/24, 10/100/1000)
+  if (/^\d+(?:\/\d+)+$/.test(clean)) {
+    return true;
+  }
+
+  // 4. Protocol / standard patterns like 802.11b/g/n, 802.11a/b/g/n/ac/ax, 2G/3G/4G/5G
+  if (/^(?:\d+\.\d+)?[a-zA-Z0-9]+(?:\/[a-zA-Z0-9]+)+$/i.test(clean)) {
+    const parts = clean.split('/');
+    if (parts.some(p => p.length <= 3)) {
+      return true;
+    }
+  }
+
+  // 5. Short slash segments in general
+  const slashParts = clean.split('/');
+  if (slashParts.length > 1 && (slashParts.some(p => p.length <= 3) || clean.length <= 10)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
  * Breaks long text strings across multiple lines based on maximum character limit.
- * Priority order: (1) explicit \n, (2) "/" semantic delimiters, (3) space-based word wrap.
+ * Priority order:
+ * 1. Explicit line breaks (\n)
+ * 2. Semantic category separators with spaces (" / ", " - ")
+ * 3. Trailing parenthetical clauses ("(...)")
+ * 4. Space-based greedy line packing with protected atomic tokens (e.g. b/g/n, TCP/IP, km/h, w/o)
+ * 5. Natural punctuation boundaries for oversized non-atomic compounds (e.g. Agriculture/Horticulture)
  */
 export function wrapAxisLabelText(text: string, maxCharsPerLine: number = 16): string {
   if (!text) return '';
-  const unescaped = text.replace(/\\n/g, '\n');
+  const unescaped = text.replace(/\\n/g, '\n').trim();
+
+  // 1. Honor explicit line breaks if present
   if (unescaped.includes('\n')) {
-    return unescaped.split('\n').map(segment => wrapAxisLabelText(segment, maxCharsPerLine)).join('\n');
+    return unescaped
+      .split('\n')
+      .map(segment => wrapAxisLabelText(segment.trim(), maxCharsPerLine))
+      .join('\n');
   }
-  // Priority 2: Pre-split on "/" semantic separators (e.g. "Agriculture/Horticulture", "Traffic / Smart City")
-  if (unescaped.includes('/')) {
-    const slashSegments = unescaped.split('/').map(s => s.trim()).filter(Boolean);
-    if (slashSegments.length > 1) {
-      return slashSegments.map((segment, sIdx) => {
-        const textWithSlash = sIdx < slashSegments.length - 1 ? `${segment}/` : segment;
-        return wrapAxisLabelText(textWithSlash, maxCharsPerLine);
-      }).join('\n');
+
+  // 2. If the entire string already fits, return directly
+  if (unescaped.length <= maxCharsPerLine) {
+    return unescaped;
+  }
+
+  // 3. Smart pre-split for category separator with spaces: " / "
+  if (/\s+\/\s+/.test(unescaped)) {
+    const parts = unescaped.split(/\s+\/\s+/);
+    if (parts.length > 1) {
+      return parts
+        .map((p, idx) => {
+          const suffix = idx < parts.length - 1 ? ' /' : '';
+          return wrapAxisLabelText(p.trim() + suffix, maxCharsPerLine);
+        })
+        .join('\n');
     }
   }
-  if (unescaped.length <= maxCharsPerLine) return unescaped;
-  const words = unescaped.split(' ');
+
+  // 4. Smart parenthetical segmentation
+  // If string contains a trailing parenthetical clause like "Wi-Fi WLAN (802.11 b/g/ax)"
+  // or "Throughput (Mbps)", separate the main title and parenthetical qualifier so they wrap independently
+  const parenMatch = unescaped.match(/^(.+?)\s+([(][^()]+[)])$/);
+  if (parenMatch) {
+    const lead = parenMatch[1].trim();
+    const paren = parenMatch[2].trim();
+    return `${wrapAxisLabelText(lead, maxCharsPerLine)}\n${wrapAxisLabelText(paren, maxCharsPerLine)}`;
+  }
+
+  // 5. Intelligent tokenization: preserve raw words with their slashes/hyphens intact
+  const rawWords = unescaped.split(/\s+/).filter(Boolean);
+
+  // 6. Line packing with lazy splitting of oversized compound words
   const lines: string[] = [];
   let current = '';
 
-  for (const word of words) {
+  for (const word of rawWords) {
+    // If word exceeds maxCharsPerLine on its own, check if it can be split at non-atomic slashes/hyphens
     if (word.length > maxCharsPerLine) {
       if (current) {
         lines.push(current);
         current = '';
       }
-      let rem = word;
-      while (rem.length > maxCharsPerLine) {
-        lines.push(rem.slice(0, maxCharsPerLine));
-        rem = rem.slice(maxCharsPerLine);
+
+      if (word.includes('/') && !isAtomicSlashToken(word)) {
+        const slashParts = word.split('/');
+        let compoundLine = '';
+        for (let sIdx = 0; sIdx < slashParts.length; sIdx++) {
+          const part = slashParts[sIdx] + (sIdx < slashParts.length - 1 ? '/' : '');
+          if (!compoundLine) {
+            compoundLine = part;
+          } else if ((compoundLine + part).length <= maxCharsPerLine) {
+            compoundLine += part;
+          } else {
+            lines.push(compoundLine);
+            compoundLine = part;
+          }
+        }
+        if (compoundLine) {
+          current = compoundLine;
+        }
+        continue;
+      } else if (word.includes('-') && !word.startsWith('-')) {
+        const dashParts = word.split('-');
+        if (dashParts.every(p => p.length >= 3)) {
+          let compoundLine = '';
+          for (let dIdx = 0; dIdx < dashParts.length; dIdx++) {
+            const part = dashParts[dIdx] + (dIdx < dashParts.length - 1 ? '-' : '');
+            if (!compoundLine) {
+              compoundLine = part;
+            } else if ((compoundLine + part).length <= maxCharsPerLine) {
+              compoundLine += part;
+            } else {
+              lines.push(compoundLine);
+              compoundLine = part;
+            }
+          }
+          if (compoundLine) {
+            current = compoundLine;
+          }
+          continue;
+        }
       }
-      current = rem;
-    } else if ((current + ' ' + word).trim().length > maxCharsPerLine) {
-      if (current) lines.push(current);
+
       current = word;
+      continue;
+    }
+
+    // Word fits within maxCharsPerLine
+    if (!current) {
+      current = word;
+    } else if ((current + ' ' + word).length <= maxCharsPerLine) {
+      current = current + ' ' + word;
     } else {
-      current = (current + ' ' + word).trim();
+      lines.push(current);
+      current = word;
     }
   }
-  if (current) lines.push(current);
-  return lines.join('\n');
+  if (current) {
+    lines.push(current);
+  }
+
+  // 7. Handle any single line that still exceeds maxCharsPerLine
+  // Tolerance: If a single line exceeds maxCharsPerLine by <= 2 characters (or <= 20%),
+  // keep it intact rather than chopping off 1 or 2 orphan letters!
+  const finalLines: string[] = [];
+  const maxOverflowTolerance = Math.max(2, Math.floor(maxCharsPerLine * 0.2));
+
+  for (const line of lines) {
+    if (line.length <= maxCharsPerLine + maxOverflowTolerance) {
+      finalLines.push(line);
+    } else {
+      // Check if line has a natural sub-split between numeric prefix and suffix (e.g. 802.11b/g/n)
+      const numPrefixMatch = line.match(/^(\d+(?:\.\d+)+)([a-zA-Z/].*)$/);
+      if (numPrefixMatch && numPrefixMatch[1].length <= maxCharsPerLine && numPrefixMatch[2].length <= maxCharsPerLine) {
+        finalLines.push(numPrefixMatch[1]);
+        finalLines.push(numPrefixMatch[2]);
+        continue;
+      }
+
+      // Hard break oversized single tokens
+      let rem = line;
+      while (rem.length > maxCharsPerLine) {
+        finalLines.push(rem.slice(0, maxCharsPerLine));
+        rem = rem.slice(maxCharsPerLine);
+      }
+      if (rem) finalLines.push(rem);
+    }
+  }
+
+  // 8. Prevent orphan single punctuation lines (e.g. lone ')' or '/')
+  for (let i = finalLines.length - 1; i > 0; i--) {
+    if (/^[)\]}>/:;,\s]+$/.test(finalLines[i])) {
+      finalLines[i - 1] += finalLines[i];
+      finalLines.splice(i, 1);
+    }
+  }
+
+  return finalLines.join('\n');
+}
+
+/**
+ * Accurately estimates the maximum rendered pixel width of category tick labels.
+ * Used to calculate the exact ECharts nameGap so the axis title is placed at
+ * an exact user-specified gap from the leftmost category label.
+ */
+export function estimateCategoryLabelSpan(
+  categories: (string | number)[] | undefined,
+  fontSize: number,
+  labelWidth: number,
+  overflow: string,
+  labelMargin: number
+): number {
+  if (!categories || categories.length === 0) {
+    return Math.min(labelWidth, 80) + labelMargin;
+  }
+  const charLimit = Math.max(8, Math.floor((labelWidth - 8) / (fontSize * 0.55)));
+  let maxChars = 0;
+  for (const item of categories) {
+    const str = String(item ?? '');
+    const lines = (overflow === 'break') ? wrapAxisLabelText(str, charLimit).split('\n') : [str];
+    for (const line of lines) {
+      if (line.length > maxChars) maxChars = line.length;
+    }
+  }
+  const estWidth = Math.min(labelWidth, Math.ceil(maxChars * (fontSize * 0.62)));
+  return Math.max(25, estWidth) + labelMargin;
 }
 
 /**
@@ -218,12 +409,17 @@ export function buildScientificAxisConfig(
     ? (ctx.axisLabelIntervalX ?? 'auto')
     : (ctx.axisLabelIntervalY ?? 'auto');
 
+
   // 2. Resolve Titles
   const customTitle = isX ? ctx.customAxisTitleX : ctx.customAxisTitleY;
   const showTitle = isX ? (ctx.showAxisTitleX ?? true) : (ctx.showAxisTitleY ?? true);
-  const resolvedTitle = (customTitle && customTitle.trim() !== '') 
+  const titlePrefix = isX ? (ctx.axisTitlePrefixX || '') : (ctx.axisTitlePrefixY || '');
+  const titleSuffix = isX ? (ctx.axisTitleSuffixX || '') : (ctx.axisTitleSuffixY || '');
+
+  const baseTitleText = (customTitle && customTitle.trim() !== '') 
     ? customTitle.trim() 
     : (options.defaultTitle ? formatVariableDisplayName(options.defaultTitle) : '');
+  const resolvedTitle = baseTitleText ? `${titlePrefix}${baseTitleText}${titleSuffix}` : '';
 
   const titleFontSize = isX
     ? (ctx.axisTitleFontSizeX ?? Math.max(9, fontSize - 1))
@@ -245,13 +441,40 @@ export function buildScientificAxisConfig(
     ? (ctx.axisTitleLocationX || 'middle')
     : (ctx.axisTitleLocationY || 'middle');
 
+  const isMiddleLocation = !titleLocation || titleLocation === 'middle' || titleLocation === 'center';
+
+  const defaultRotate = isX ? 0 : (isMiddleLocation ? 90 : 0);
+  const titleRotate = isX
+    ? (ctx.axisTitleRotateX !== undefined ? ctx.axisTitleRotateX : defaultRotate)
+    : (ctx.axisTitleRotateY !== undefined ? ctx.axisTitleRotateY : defaultRotate);
+
+  const offsetX = isX ? (ctx.axisTitleOffsetX_X ?? 0) : (ctx.axisTitleOffsetX_Y ?? 0);
+  const offsetY = isX ? (ctx.axisTitleOffsetY_X ?? 0) : (ctx.axisTitleOffsetY_Y ?? 0);
+
   const dynamicDefaultTitleGap = isX
     ? 28
-    : (isHorizontalChart ? Math.max(42, labelWidth + labelMargin + 16) : 38);
+    : (isHorizontalChart ? (isMiddleLocation ? 15 : 10) : 38);
 
-  const titleGap = isX
+  const rawTitleGap = isX
     ? (ctx.axisTitleGapX ?? 28)
     : (ctx.axisTitleGapY ?? dynamicDefaultTitleGap);
+
+  let titleGap = rawTitleGap;
+  if (isHorizontalChart && !isX && isMiddleLocation) {
+    const labelSpan = estimateCategoryLabelSpan(
+      options.categories,
+      labelFontSize,
+      labelWidth,
+      labelOverflow,
+      labelMargin
+    );
+    const halfTitleThickness = titleRotate === 0
+      ? Math.round(Math.min(200, (resolvedTitle.length * titleFontSize * 0.6)) / 2)
+      : Math.round(titleFontSize / 2);
+    titleGap = labelSpan + rawTitleGap + halfTitleThickness - offsetX;
+  } else {
+    titleGap = rawTitleGap - (isX ? offsetY : offsetX);
+  }
 
   // 3. Resolve Gridlines
   const defaultShowGrid = isX
@@ -263,7 +486,7 @@ export function buildScientificAxisConfig(
     : (ctx.showGridLinesY !== undefined ? ctx.showGridLinesY : defaultShowGrid);
 
   const gridLineStyle: AxisGridLineStyle = ctx.gridLineStyle || 'dashed';
-  const gridLineColor = ctx.gridLineColor || palette.border;
+  const gridLineColor = ctx.gridLineColor || palette.gridLine || palette.border;
   const gridLineOpacity = (ctx.gridLineOpacity ?? 100) / 100;
 
   // 4. Resolve Baseline & Ticks
@@ -329,12 +552,26 @@ export function buildScientificAxisConfig(
     name: showTitle && resolvedTitle ? resolvedTitle : undefined,
     nameLocation: titleLocation as any,
     nameGap: titleGap,
+    nameRotate: titleRotate,
     nameTextStyle: {
       fontFamily: font,
       fontSize: titleFontSize,
       fontWeight: titleFontWeight as any,
       fontStyle: titleFontStyle as any,
-      color: titleColor
+      color: titleColor,
+      align: isX
+        ? (ctx.axisTitleAlignX || (titleLocation === 'start' ? 'left' : titleLocation === 'end' ? 'right' : 'center'))
+        : (isHorizontalChart && (titleLocation === 'end' || titleLocation === 'start')
+          ? 'right'
+          : (ctx.axisTitleAlignY || 'center')),
+      verticalAlign: isHorizontalChart && !isX && titleLocation === 'end'
+        ? 'bottom'
+        : isHorizontalChart && !isX && titleLocation === 'start'
+        ? 'top'
+        : (isX ? 'top' : 'middle'),
+      padding: isX
+        ? [0, 0, 0, offsetX]
+        : [-offsetY, 0, offsetY, 0]
     },
     axisLabel: {
       show: showLabel,
@@ -403,25 +640,27 @@ export function resolveUniversalGrid(
     ctx.chartType === 'horizontal_bar_scatter' ||
     ((ctx.chartType === 'clustered_bar' || ctx.chartType === 'stacked_bar') && ctx.barOrientation === 'horizontal') ||
     (ctx.chartType === 'boxplot' && ctx.boxplotOrientation === 'horizontal');
+  // Compute minimum left clearance required to preserve Y-axis title visibility without clipping
+  const showYTitle = (ctx.showAxisTitleY ?? true) && Boolean(ctx.customAxisTitleY || ctx.primaryField);
+  const titleLocationY = ctx.axisTitleLocationY || 'middle';
+  const isMiddleY = titleLocationY === 'middle' || titleLocationY === 'center';
+  const titleFontSizeY = ctx.axisTitleFontSizeY ?? 11;
+  const titleGapY = ctx.axisTitleGapY ?? (isHorizontalChart ? (isMiddleY ? 15 : 10) : 38);
+  const titleRotateY = ctx.axisTitleRotateY !== undefined ? ctx.axisTitleRotateY : (isMiddleY ? 90 : 0);
+  const titleThicknessY = titleRotateY === 0
+    ? Math.min(220, ((ctx.customAxisTitleY || ctx.primaryField || '').length * titleFontSizeY * 0.6))
+    : (titleFontSizeY + 6);
 
-  const effectiveLabelWidth = ctx.axisLabelWidthY ?? ctx.barYAxisWidth ?? 140;
-  const effectiveLabelMargin = ctx.axisLabelMarginY ?? 8;
-  const showYTitle = (ctx.showAxisTitleY ?? true) && Boolean(ctx.customAxisTitleY || (ctx as any).primaryField || (ctx as any).categoryField);
-  const effectiveYTitleGap = ctx.axisTitleGapY ?? Math.max(42, effectiveLabelWidth + effectiveLabelMargin + 16);
-  const titleFontSize = ctx.axisTitleFontSizeY ?? Math.max(9, (ctx.fontSize || 12) - 1);
-  const requiredYTitleClearance = isHorizontalChart
-    ? (showYTitle ? (effectiveYTitleGap + titleFontSize + 16) : (effectiveLabelWidth + effectiveLabelMargin + 20))
-    : 40;
+  const minRequiredTitleSpace = (showYTitle && isHorizontalChart && isMiddleY)
+    ? Math.round(titleThicknessY + titleGapY + 14)
+    : 0;
 
   if (!isAuto) {
     const top = ctx.gridMarginTop ?? defaultGrid.top ?? 45;
     const bottom = ctx.gridMarginBottom ?? defaultGrid.bottom ?? 45;
-    let rawLeft = ctx.gridMarginLeft ?? defaultGrid.left ?? (isHorizontalChart ? requiredYTitleClearance : 60);
-    if (isHorizontalChart && rawLeft <= 40) {
-      rawLeft = Math.round(1200 * (rawLeft / 100));
-    }
-    const left = isHorizontalChart ? Math.max(requiredYTitleClearance, rawLeft) : rawLeft;
-    const right = ctx.gridMarginRight ?? defaultGrid.right ?? 45;
+    const rawLeft = ctx.gridMarginLeft ?? ctx.barGridLeft ?? defaultGrid.left ?? 25;
+    const left = Math.max(minRequiredTitleSpace, rawLeft);
+    const right = ctx.gridMarginRight ?? ctx.barGridRight ?? defaultGrid.right ?? 45;
     return {
       top: Math.max(0, top - offY),
       bottom: Math.max(0, bottom + offY),
@@ -433,11 +672,7 @@ export function resolveUniversalGrid(
 
   let top = defaultGrid.top ?? 45;
   let bottom = defaultGrid.bottom ?? 45;
-  let rawLeft = defaultGrid.left ?? (isHorizontalChart ? requiredYTitleClearance : 60);
-  if (isHorizontalChart && rawLeft <= 40) {
-    rawLeft = Math.round(1200 * (rawLeft / 100));
-  }
-  let left = isHorizontalChart ? Math.max(requiredYTitleClearance, rawLeft) : rawLeft;
+  let left = defaultGrid.left ?? 25;
   let right = defaultGrid.right ?? 45;
 
   if (showLegend) {
@@ -447,12 +682,14 @@ export function resolveUniversalGrid(
     else if (isLeft) left = Math.max(left, 120 + legDist);
   }
 
+  left = Math.max(minRequiredTitleSpace, left);
+
   const cPad = ctx.containerPadding !== undefined ? ctx.containerPadding - 12 : 0;
 
   return {
     top: Math.max(10, top + cPad - offY),
     bottom: Math.max(10, bottom + cPad + offY),
-    left: Math.max(15, left + cPad - offX),
+    left: Math.max(0, left + cPad - offX),
     right: Math.max(15, right + cPad + offX),
     containLabel: true
   };

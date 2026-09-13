@@ -421,6 +421,42 @@ export function useVisualizerConfig(params: {
   const axisTitleGapY = currentSlotConfig.axisTitleGapY ?? 38;
   const setAxisTitleGapY = useCallback((v: number) => updateActiveSlot({ axisTitleGapY: v }), [updateActiveSlot]);
 
+  const axisTitleRotateX = currentSlotConfig.axisTitleRotateX ?? 0;
+  const setAxisTitleRotateX = useCallback((v: number) => updateActiveSlot({ axisTitleRotateX: v }), [updateActiveSlot]);
+
+  const axisTitleRotateY = currentSlotConfig.axisTitleRotateY ?? 90;
+  const setAxisTitleRotateY = useCallback((v: number) => updateActiveSlot({ axisTitleRotateY: v }), [updateActiveSlot]);
+
+  const axisTitleAlignX = currentSlotConfig.axisTitleAlignX || 'center';
+  const setAxisTitleAlignX = useCallback((v: 'left' | 'center' | 'right') => updateActiveSlot({ axisTitleAlignX: v }), [updateActiveSlot]);
+
+  const axisTitleAlignY = currentSlotConfig.axisTitleAlignY || 'center';
+  const setAxisTitleAlignY = useCallback((v: 'left' | 'center' | 'right') => updateActiveSlot({ axisTitleAlignY: v }), [updateActiveSlot]);
+
+  const axisTitleOffsetX_X = currentSlotConfig.axisTitleOffsetX_X ?? 0;
+  const setAxisTitleOffsetX_X = useCallback((v: number) => updateActiveSlot({ axisTitleOffsetX_X: v }), [updateActiveSlot]);
+
+  const axisTitleOffsetY_X = currentSlotConfig.axisTitleOffsetY_X ?? 0;
+  const setAxisTitleOffsetY_X = useCallback((v: number) => updateActiveSlot({ axisTitleOffsetY_X: v }), [updateActiveSlot]);
+
+  const axisTitleOffsetX_Y = currentSlotConfig.axisTitleOffsetX_Y ?? 0;
+  const setAxisTitleOffsetX_Y = useCallback((v: number) => updateActiveSlot({ axisTitleOffsetX_Y: v }), [updateActiveSlot]);
+
+  const axisTitleOffsetY_Y = currentSlotConfig.axisTitleOffsetY_Y ?? 0;
+  const setAxisTitleOffsetY_Y = useCallback((v: number) => updateActiveSlot({ axisTitleOffsetY_Y: v }), [updateActiveSlot]);
+
+  const axisTitlePrefixX = currentSlotConfig.axisTitlePrefixX || '';
+  const setAxisTitlePrefixX = useCallback((v: string) => updateActiveSlot({ axisTitlePrefixX: v }), [updateActiveSlot]);
+
+  const axisTitleSuffixX = currentSlotConfig.axisTitleSuffixX || '';
+  const setAxisTitleSuffixX = useCallback((v: string) => updateActiveSlot({ axisTitleSuffixX: v }), [updateActiveSlot]);
+
+  const axisTitlePrefixY = currentSlotConfig.axisTitlePrefixY || '';
+  const setAxisTitlePrefixY = useCallback((v: string) => updateActiveSlot({ axisTitlePrefixY: v }), [updateActiveSlot]);
+
+  const axisTitleSuffixY = currentSlotConfig.axisTitleSuffixY || '';
+  const setAxisTitleSuffixY = useCallback((v: string) => updateActiveSlot({ axisTitleSuffixY: v }), [updateActiveSlot]);
+
   // Axis Tick Labels Customization
   const showAxisLabelX = currentSlotConfig.showAxisLabelX ?? true;
   const setShowAxisLabelX = useCallback((v: boolean) => updateActiveSlot({ showAxisLabelX: v }), [updateActiveSlot]);
@@ -871,6 +907,15 @@ export function useVisualizerConfig(params: {
   const pieCornerRadius = currentSlotConfig.pieCornerRadius ?? 4;
   const setPieCornerRadius = useCallback((v: number) => updateActiveSlot({ pieCornerRadius: v }), [updateActiveSlot]);
 
+  const pieSort = currentSlotConfig.pieSort || 'desc';
+  const setPieSort = useCallback((v: 'desc' | 'asc' | 'none') => updateActiveSlot({ pieSort: v }), [updateActiveSlot]);
+
+  const pieStartAngle = currentSlotConfig.pieStartAngle ?? 90;
+  const setPieStartAngle = useCallback((v: number) => updateActiveSlot({ pieStartAngle: v }), [updateActiveSlot]);
+
+  const pieMinAngle = currentSlotConfig.pieMinAngle ?? 0;
+  const setPieMinAngle = useCallback((v: number) => updateActiveSlot({ pieMinAngle: v }), [updateActiveSlot]);
+
   const treemapAlgorithm = currentSlotConfig.treemapAlgorithm || 'squarified';
   const setTreemapAlgorithm = useCallback((v: 'squarified' | 'sliceAndDice' | 'binary') => updateActiveSlot({ treemapAlgorithm: v }), [updateActiveSlot]);
 
@@ -1270,6 +1315,12 @@ export function useVisualizerConfig(params: {
   const funnelNeckHeight = currentSlotConfig.funnelNeckHeight ?? 25;
   const setFunnelNeckHeight = useCallback((v: number) => updateActiveSlot({ funnelNeckHeight: v }), [updateActiveSlot]);
 
+  const funnelLabelPosition = currentSlotConfig.funnelLabelPosition || 'inside';
+  const setFunnelLabelPosition = useCallback((v: 'inside' | 'outside' | 'left' | 'right') => updateActiveSlot({ funnelLabelPosition: v }), [updateActiveSlot]);
+
+  const funnelSort = currentSlotConfig.funnelSort || 'descending';
+  const setFunnelSort = useCallback((v: 'descending' | 'ascending' | 'none') => updateActiveSlot({ funnelSort: v }), [updateActiveSlot]);
+
   const boxplotBoxWidth = currentSlotConfig.boxplotBoxWidth ?? 30;
   const setBoxplotBoxWidth = useCallback((v: number) => updateActiveSlot({ boxplotBoxWidth: v }), [updateActiveSlot]);
 
@@ -1278,6 +1329,12 @@ export function useVisualizerConfig(params: {
 
   const boxplotOrientation = currentSlotConfig.boxplotOrientation || 'vertical';
   const setBoxplotOrientation = useCallback((v: 'vertical' | 'horizontal') => updateActiveSlot({ boxplotOrientation: v }), [updateActiveSlot]);
+
+  const boxplotFillColor = currentSlotConfig.boxplotFillColor || '';
+  const setBoxplotFillColor = useCallback((v: string) => updateActiveSlot({ boxplotFillColor: v }), [updateActiveSlot]);
+
+  const boxplotBorderColor = currentSlotConfig.boxplotBorderColor || '';
+  const setBoxplotBorderColor = useCallback((v: string) => updateActiveSlot({ boxplotBorderColor: v }), [updateActiveSlot]);
 
   const scatterPointSize = currentSlotConfig.scatterPointSize ?? 10;
   const setScatterPointSize = useCallback((v: number) => updateActiveSlot({ scatterPointSize: v }), [updateActiveSlot]);
@@ -1390,6 +1447,12 @@ export function useVisualizerConfig(params: {
   const graphShowLinkWeights = currentSlotConfig.graphShowLinkWeights ?? true;
   const setGraphShowLinkWeights = useCallback((v: boolean) => updateActiveSlot({ graphShowLinkWeights: v }), [updateActiveSlot]);
 
+  const graphNodeSize = currentSlotConfig.graphNodeSize ?? 20;
+  const setGraphNodeSize = useCallback((v: number) => updateActiveSlot({ graphNodeSize: v }), [updateActiveSlot]);
+
+  const graphDraggable = currentSlotConfig.graphDraggable !== false;
+  const setGraphDraggable = useCallback((v: boolean) => updateActiveSlot({ graphDraggable: v }), [updateActiveSlot]);
+
   const gaugeStartAngle = currentSlotConfig.gaugeStartAngle ?? 225;
   const setGaugeStartAngle = useCallback((v: number) => updateActiveSlot({ gaugeStartAngle: v }), [updateActiveSlot]);
 
@@ -1402,11 +1465,20 @@ export function useVisualizerConfig(params: {
   const gaugeDialWidth = currentSlotConfig.gaugeDialWidth ?? 14;
   const setGaugeDialWidth = useCallback((v: number) => updateActiveSlot({ gaugeDialWidth: v }), [updateActiveSlot]);
 
+  const gaugeUnit = currentSlotConfig.gaugeUnit || 'auto';
+  const setGaugeUnit = useCallback((v: string) => updateActiveSlot({ gaugeUnit: v }), [updateActiveSlot]);
+
+  const gaugeSplitNumber = currentSlotConfig.gaugeSplitNumber ?? 5;
+  const setGaugeSplitNumber = useCallback((v: number) => updateActiveSlot({ gaugeSplitNumber: v }), [updateActiveSlot]);
+
   const calendarCellSize = currentSlotConfig.calendarCellSize ?? 14;
   const setCalendarCellSize = useCallback((v: number) => updateActiveSlot({ calendarCellSize: v }), [updateActiveSlot]);
 
   const calendarYear = currentSlotConfig.calendarYear || 'auto';
   const setCalendarYear = useCallback((v: string) => updateActiveSlot({ calendarYear: v }), [updateActiveSlot]);
+
+  const calendarColorPreset = currentSlotConfig.calendarColorPreset || 'academic';
+  const setCalendarColorPreset = useCallback((v: 'academic' | 'viridis' | 'plasma' | 'thermal' | 'coolwarm') => updateActiveSlot({ calendarColorPreset: v }), [updateActiveSlot]);
 
   const stackedNormalized = currentSlotConfig.stackedNormalized ?? false;
   const setStackedNormalized = useCallback((v: boolean) => updateActiveSlot({ stackedNormalized: v }), [updateActiveSlot]);
@@ -1577,10 +1649,10 @@ export function useVisualizerConfig(params: {
   const barGridBottom = currentSlotConfig.barGridBottom ?? currentSlotConfig.gridMarginBottom ?? 75;
   const setBarGridBottom = useCallback((v: number) => updateActiveSlot({ barGridBottom: v, gridMarginBottom: v }), [updateActiveSlot]);
 
-  const barGridLeft = currentSlotConfig.barGridLeft ?? currentSlotConfig.gridMarginLeft ?? 20;
+  const barGridLeft = currentSlotConfig.barGridLeft ?? currentSlotConfig.gridMarginLeft ?? 25;
   const setBarGridLeft = useCallback((v: number) => updateActiveSlot({ barGridLeft: v, gridMarginLeft: v }), [updateActiveSlot]);
 
-  const barGridRight = currentSlotConfig.barGridRight ?? currentSlotConfig.gridMarginRight ?? 12;
+  const barGridRight = currentSlotConfig.barGridRight ?? currentSlotConfig.gridMarginRight ?? 55;
   const setBarGridRight = useCallback((v: number) => updateActiveSlot({ barGridRight: v, gridMarginRight: v }), [updateActiveSlot]);
 
   const scatterSortMode = currentSlotConfig.scatterSortMode || 'prevalence_desc';
@@ -1599,10 +1671,10 @@ export function useVisualizerConfig(params: {
   const gridMarginBottom = currentSlotConfig.gridMarginBottom ?? currentSlotConfig.barGridBottom ?? 45;
   const setGridMarginBottom = useCallback((v: number) => updateActiveSlot({ gridMarginBottom: v, barGridBottom: v }), [updateActiveSlot]);
 
-  const gridMarginLeft = currentSlotConfig.gridMarginLeft ?? currentSlotConfig.barGridLeft ?? 60;
+  const gridMarginLeft = currentSlotConfig.gridMarginLeft ?? currentSlotConfig.barGridLeft ?? 25;
   const setGridMarginLeft = useCallback((v: number) => updateActiveSlot({ gridMarginLeft: v, barGridLeft: v }), [updateActiveSlot]);
 
-  const gridMarginRight = currentSlotConfig.gridMarginRight ?? currentSlotConfig.barGridRight ?? 45;
+  const gridMarginRight = currentSlotConfig.gridMarginRight ?? currentSlotConfig.barGridRight ?? 55;
   const setGridMarginRight = useCallback((v: number) => updateActiveSlot({ gridMarginRight: v, barGridRight: v }), [updateActiveSlot]);
 
   // Universal Data Labels
@@ -1886,6 +1958,30 @@ export function useVisualizerConfig(params: {
     setAxisTitleGapX,
     axisTitleGapY,
     setAxisTitleGapY,
+    axisTitleRotateX,
+    setAxisTitleRotateX,
+    axisTitleRotateY,
+    setAxisTitleRotateY,
+    axisTitleAlignX,
+    setAxisTitleAlignX,
+    axisTitleAlignY,
+    setAxisTitleAlignY,
+    axisTitleOffsetX_X,
+    setAxisTitleOffsetX_X,
+    axisTitleOffsetY_X,
+    setAxisTitleOffsetY_X,
+    axisTitleOffsetX_Y,
+    setAxisTitleOffsetX_Y,
+    axisTitleOffsetY_Y,
+    setAxisTitleOffsetY_Y,
+    axisTitlePrefixX,
+    setAxisTitlePrefixX,
+    axisTitleSuffixX,
+    setAxisTitleSuffixX,
+    axisTitlePrefixY,
+    setAxisTitlePrefixY,
+    axisTitleSuffixY,
+    setAxisTitleSuffixY,
     // Axis Tick Labels Customization
     showAxisLabelX,
     setShowAxisLabelX,
@@ -2182,6 +2278,12 @@ export function useVisualizerConfig(params: {
     setPiePadAngle,
     pieCornerRadius,
     setPieCornerRadius,
+    pieSort,
+    setPieSort,
+    pieStartAngle,
+    setPieStartAngle,
+    pieMinAngle,
+    setPieMinAngle,
     treemapAlgorithm,
     setTreemapAlgorithm,
     treemapSquareRatio,
@@ -2448,12 +2550,20 @@ export function useVisualizerConfig(params: {
     setFunnelNeckWidth,
     funnelNeckHeight,
     setFunnelNeckHeight,
+    funnelLabelPosition,
+    setFunnelLabelPosition,
+    funnelSort,
+    setFunnelSort,
     boxplotBoxWidth,
     setBoxplotBoxWidth,
     boxplotShowScatter,
     setBoxplotShowScatter,
     boxplotOrientation,
     setBoxplotOrientation,
+    boxplotFillColor,
+    setBoxplotFillColor,
+    boxplotBorderColor,
+    setBoxplotBorderColor,
     scatterPointSize,
     setScatterPointSize,
     scatterPointOpacity,
@@ -2528,6 +2638,10 @@ export function useVisualizerConfig(params: {
     setGraphCurveness,
     graphShowLinkWeights,
     setGraphShowLinkWeights,
+    graphNodeSize,
+    setGraphNodeSize,
+    graphDraggable,
+    setGraphDraggable,
     gaugeStartAngle,
     setGaugeStartAngle,
     gaugeEndAngle,
@@ -2536,10 +2650,16 @@ export function useVisualizerConfig(params: {
     setGaugePointerWidth,
     gaugeDialWidth,
     setGaugeDialWidth,
+    gaugeUnit,
+    setGaugeUnit,
+    gaugeSplitNumber,
+    setGaugeSplitNumber,
     calendarCellSize,
     setCalendarCellSize,
     calendarYear,
     setCalendarYear,
+    calendarColorPreset,
+    setCalendarColorPreset,
     stackedNormalized,
     setStackedNormalized,
     stackedReverseOrder,

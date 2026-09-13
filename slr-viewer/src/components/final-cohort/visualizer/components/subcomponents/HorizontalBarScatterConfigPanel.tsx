@@ -104,9 +104,9 @@ export function HorizontalBarScatterConfigPanel() {
     setBarGridTop,
     barGridBottom = 58,
     setBarGridBottom,
-    barGridLeft = 4,
+    barGridLeft = 25,
     setBarGridLeft,
-    barGridRight = 4,
+    barGridRight = 55,
     setBarGridRight,
     axisTitleGapY,
     setAxisTitleGapY,
@@ -723,14 +723,14 @@ export function HorizontalBarScatterConfigPanel() {
 
           <div className="space-y-1">
             <label className="text-xs font-bold text-foreground block">
-              Title Distance Gap ({axisTitleGapY ?? Math.max(42, barYAxisWidth + axisLabelMarginY + 16)}px)
+              Title Distance Gap ({axisTitleGapY ?? 15}px)
             </label>
             <input
               type="range"
-              min={20}
-              max={280}
-              step={5}
-              value={axisTitleGapY ?? Math.max(42, barYAxisWidth + axisLabelMarginY + 16)}
+              min={5}
+              max={240}
+              step={1}
+              value={axisTitleGapY ?? 15}
               onChange={(e) => setAxisTitleGapY(Number(e.target.value))}
               className="w-full accent-primary"
               title="Distance of Y-axis title from axis line to prevent collision"
@@ -957,36 +957,42 @@ export function HorizontalBarScatterConfigPanel() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground block">Left Margin ({barGridLeft}%)</label>
+            <label className="text-xs font-bold text-foreground block">
+              Left Margin ({gridMarginLeft ?? barGridLeft ?? 25}px)
+            </label>
             <input
               type="range"
-              min={4}
-              max={35}
-              value={barGridLeft}
+              min={0}
+              max={300}
+              step={5}
+              value={gridMarginLeft ?? barGridLeft ?? 25}
               onChange={(e) => {
                 const v = Number(e.target.value);
                 setBarGridLeft(v);
-                setGridMarginLeft(Math.round(1200 * (v / 100)));
+                setGridMarginLeft(v);
               }}
               className="w-full accent-primary"
-              title="Left canvas clearance for category labels and axis title"
+              title="Left canvas clearance in pixels for category labels and axis title"
             />
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-foreground block">Right Margin ({barGridRight}%)</label>
+            <label className="text-xs font-bold text-foreground block">
+              Right Margin ({gridMarginRight ?? barGridRight ?? 55}px)
+            </label>
             <input
               type="range"
-              min={2}
-              max={30}
-              value={barGridRight}
+              min={10}
+              max={240}
+              step={5}
+              value={gridMarginRight ?? barGridRight ?? 55}
               onChange={(e) => {
                 const v = Number(e.target.value);
                 setBarGridRight(v);
-                setGridMarginRight(Math.round(1200 * (v / 100)));
+                setGridMarginRight(v);
               }}
               className="w-full accent-primary"
-              title="Right canvas clearance"
+              title="Right canvas clearance in pixels for data labels and margin"
             />
           </div>
         </div>

@@ -22,7 +22,7 @@ import { FONT_FAMILIES } from '../../constants/fontFamilies';
 
 type LegendSubTab = 'placement' | 'typography' | 'frame' | 'hierarchy';
 
-export function UniversalLegendConfigPanel() {
+export function UniversalLegendConfigPanel({ embedded = false }: { embedded?: boolean } = {}) {
   const { config, style } = useVisualizerContext();
   const {
     chartType,
@@ -79,38 +79,10 @@ export function UniversalLegendConfigPanel() {
 
   const isHierarchicalChart = chartType === 'stacked_bar' || Boolean(config.secondaryField);
 
-  return (
-    <div className="space-y-4 p-3.5 bg-card border border-border rounded-2xl shadow-xs">
-      {/* Header Bar with Accordion & Master Toggle */}
-      <div className="flex items-center justify-between pb-2 border-b border-border/60">
-        <div 
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-2 cursor-pointer select-none"
-        >
-          {isExpanded ? <ChevronDown className="w-4 h-4 text-primary" /> : <ChevronRight className="w-4 h-4 text-primary" />}
-          <span className="text-xs font-extrabold uppercase tracking-wider text-primary flex items-center gap-1.5">
-            <Layout className="w-3.5 h-3.5" />
-            Universal Legend & Keys Configurator
-          </span>
-          <span className="text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-secondary border border-border/60 text-muted-foreground">
-            {legendPosition.toUpperCase()}
-          </span>
-        </div>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showLegend}
-            onChange={(e) => setShowLegend(e.target.checked)}
-            className="w-3.5 h-3.5 rounded text-primary accent-primary"
-          />
-          <span className="text-xs font-bold text-foreground">Show Legend</span>
-        </label>
-      </div>
-
-      {isExpanded && showLegend && (
-        <div className="space-y-3.5">
-          {/* Sub-Tab Navigation Bar */}
-          <div className="flex items-center gap-1 p-1 bg-secondary/40 rounded-xl border border-border/50">
+  const innerContent = (
+    <div className="space-y-3.5">
+      {/* Sub-Tab Navigation Bar */}
+      <div className="flex items-center gap-1 p-1 bg-secondary/40 rounded-xl border border-border/50">
             <button
               type="button"
               onClick={() => setSubTab('placement')}
@@ -768,7 +740,48 @@ export function UniversalLegendConfigPanel() {
             </div>
           )}
         </div>
-      )}
+      );
+
+  if (embedded) {
+    if (!showLegend) {
+      return (
+        <div className="p-3 text-center text-xs text-muted-foreground border border-dashed border-border/70 rounded-xl">
+          Legend is currently hidden. Turn on the "Show Legend" toggle above to configure placement and typography.
+        </div>
+      );
+    }
+    return innerContent;
+  }
+
+  return (
+    <div className="space-y-4 p-3.5 bg-card border border-border rounded-2xl shadow-xs">
+      {/* Header Bar with Accordion & Master Toggle */}
+      <div className="flex items-center justify-between pb-2 border-b border-border/60">
+        <div 
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex items-center gap-2 cursor-pointer select-none"
+        >
+          {isExpanded ? <ChevronDown className="w-4 h-4 text-primary" /> : <ChevronRight className="w-4 h-4 text-primary" />}
+          <span className="text-xs font-extrabold uppercase tracking-wider text-primary flex items-center gap-1.5">
+            <Layout className="w-3.5 h-3.5" />
+            Universal Legend & Keys Configurator
+          </span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded-full font-mono bg-secondary border border-border/60 text-muted-foreground">
+            {legendPosition.toUpperCase()}
+          </span>
+        </div>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showLegend}
+            onChange={(e) => setShowLegend(e.target.checked)}
+            className="w-3.5 h-3.5 rounded text-primary accent-primary"
+          />
+          <span className="text-xs font-bold text-foreground">Show Legend</span>
+        </label>
+      </div>
+
+      {isExpanded && showLegend && innerContent}
     </div>
   );
 }

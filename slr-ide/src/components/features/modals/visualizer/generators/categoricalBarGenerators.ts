@@ -1,5 +1,5 @@
 import type * as echarts from 'echarts';
-import { getNodeColor, getContrastingTextColor, generateDistinctPalette } from '../utils/colorUtils';
+import { getNodeColor, getContrastingTextColor, generateDistinctPalette, hexToRgba, createVerticalGradient, createHorizontalGradient, resolvePaletteAccent } from '../utils/colorUtils';
 import { 
   getFieldValue, 
   getMappedFieldValue, 
@@ -11,6 +11,7 @@ import {
 import { extractTokenPaths } from '@/lib/services/cohort-data-source';
 import { filterValuesForParent } from './hierarchicalGenerators';
 import { getSeriesPatternStyle } from '../utils/hatchPatternUtils';
+import { computeGroupStatistics, getErrorBounds } from '../utils/statisticalUtils';
 import type { ChartGeneratorContext } from './types';
 import { formatLegendLabel } from './types';
 import { formatMetricDisplay, formatPercentage } from '../utils/formatterUtils';
@@ -38,8 +39,8 @@ export function generateVerticalBarOption(ctx: ChartGeneratorContext): echarts.E
     levelCustomGroupLinks,
     sankeyFields,
     enableManualOverrides,
-    manualCategoryValues,
-    customSliceColors,
+    manualCategoryValues = {},
+    customSliceColors = {},
     showLegend,
     labelRotation,
     showDataLabels,
@@ -83,17 +84,35 @@ export function generateVerticalBarOption(ctx: ChartGeneratorContext): echarts.E
 
   const isOther = (cat: string) => cat === (ctx.otherCategoryLabel || 'Other') || cat === 'Other';
 
-  let categories = Array.from(activeCountsMap.keys()).sort((a, b) => {
-    if (isOther(a)) return 1;
-    if (isOther(b)) return -1;
-    const numA = parseFloat(a);
-    const numB = parseFloat(b);
-    if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
-    return a.localeCompare(b);
-  });
-
+  let categories = Array.from(activeCountsMap.keys());
   if (excludeEmpty || (ctx as any).excludeUnassigned) {
     categories = categories.filter(c => c !== 'Unassigned / Other' && c !== 'Unassigned');
+  }
+  if (ctx.barSorting === 'desc') {
+    categories.sort((a, b) => {
+      if (isOther(a)) return 1;
+      if (isOther(b)) return -1;
+      const valA = computeMetricValue(activeCountsMap.get(a)!, metricMode, papers.length, totalExtractedTags);
+      const valB = computeMetricValue(activeCountsMap.get(b)!, metricMode, papers.length, totalExtractedTags);
+      return valB - valA;
+    });
+  } else if (ctx.barSorting === 'asc') {
+    categories.sort((a, b) => {
+      if (isOther(a)) return 1;
+      if (isOther(b)) return -1;
+      const valA = computeMetricValue(activeCountsMap.get(a)!, metricMode, papers.length, totalExtractedTags);
+      const valB = computeMetricValue(activeCountsMap.get(b)!, metricMode, papers.length, totalExtractedTags);
+      return valA - valB;
+    });
+  } else {
+    categories.sort((a, b) => {
+      if (isOther(a)) return 1;
+      if (isOther(b)) return -1;
+      const numA = parseFloat(a);
+      const numB = parseFloat(b);
+      if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+      return a.localeCompare(b);
+    });
   }
 
   const effectiveLabelFormat = ctx.labelFormat || ctx.barLabelFormat || 'ratio_percent';
@@ -105,9 +124,9 @@ export function generateVerticalBarOption(ctx: ChartGeneratorContext): echarts.E
     const uniquePaperIds = new Set(pList.map(p => p.Paper_ID || p.id || p.title || p.Title || p));
     const paperCount = uniquePaperIds.size;
     const realVal = computeMetricValue(pList, metricMode, papers.length, totalExtractedTags);
-    const manualVal = manualCategoryValues[cat];
+    const manualVal = (manualCategoryValues || {})[cat];
     const val = (enableManualOverrides && manualVal !== undefined) ? manualVal : realVal;
-    const color = customSliceColors[cat] || distinctPalette[idx] || getNodeColor(cat, undefined, idx, palette.colors, customSliceColors);
+    const color = (customSliceColors || {})[cat] || distinctPalette[idx] || getNodeColor(cat, undefined, idx, palette.colors, customSliceColors);
     const prevalencePct = papers.length > 0 ? ((paperCount / papers.length) * 100).toFixed(2) : '0.00';
     const tagPct = totalExtractedTags > 0 ? ((tagCount / totalExtractedTags) * 100).toFixed(2) : '0.00';
 
@@ -129,15 +148,36 @@ export function generateVerticalBarOption(ctx: ChartGeneratorContext): echarts.E
       forceCohortDenominator: ctx.forceCohortDenominator
     });
 
+    const patternStyle = getSeriesPatternStyle(idx, color, ctx.enableHatchPatterns ?? false);
+    const rad = ctx.barBorderRadius ?? 4;
+    const isHatching = Boolean(ctx.enableHatchPatterns);
+    const fillStyle = isHatching
+      ? patternStyle
+      : {
+          color: createVerticalGradient(color, 1, 0.84),
+          borderColor: hexToRgba(color, 0.9),
+          borderWidth: 0.5
+        };
+
     return {
       name: cat,
       value: val,
+      color,
       paperCount,
       tagCount,
       prevalencePct,
       tagPct,
       formattedLabel,
-      itemStyle: { color, borderRadius: [4, 4, 0, 0] }
+      itemStyle: {
+        ...fillStyle,
+        borderRadius: [rad, rad, 0, 0]
+      },
+      emphasis: {
+        itemStyle: {
+          shadowBlur: 10,
+          shadowColor: hexToRgba(color, 0.35)
+        }
+      }
     };
   });
 
@@ -163,7 +203,7 @@ export function generateVerticalBarOption(ctx: ChartGeneratorContext): echarts.E
       name: label,
       icon: ctx.legendIcon && ctx.legendIcon !== 'inherit' ? ctx.legendIcon : 'roundRect',
       itemStyle: {
-        color: itemData.itemStyle.color
+        color: itemData.color
       }
     };
   });
@@ -226,36 +266,117 @@ export function generateVerticalBarOption(ctx: ChartGeneratorContext): echarts.E
       interval: (typeof ctx.barValueInterval === 'number' && ctx.barValueInterval > 0) ? ctx.barValueInterval : undefined,
       defaultUnitFormatter: (v: any) => (metricMode === 'paper_prevalence' || metricMode === 'tag_share') ? `${v}%` : `${v}`
     }),
-    series: [
-      {
-        name: metricMode.replace(/_/g, ' ').toUpperCase(),
-        type: 'bar',
-        data: valuesData,
-      label: {
-        show: showDataLabels,
-        position: labelPos as any,
-        distance: labelDist,
-        rotate: labelRot,
-        fontFamily: font,
-        fontSize: labelFSize,
-        fontWeight: labelFWeight,
-        fontStyle: labelFStyle,
-        lineHeight: labelLHeight,
-        color: ctx.universalLabelColor || ctx.barLabelColor 
-          ? (ctx.universalLabelColor === 'foreground' ? palette.text : (ctx.universalLabelColor || ctx.barLabelColor))
-          : palette.text,
-        formatter: (params: any) => {
-          if (!showZero && (params.data?.paperCount === 0 || params.value === 0)) {
-            return '';
-          }
-          if (minThresh > 0) {
-            const rawPct = parseFloat(params.data?.prevalencePct ?? '0');
-            if (!isNaN(rawPct) && rawPct < minThresh) return '';
-          }
-          return params.data?.formattedLabel ?? params.value;
-        }
+    series: (() => {
+      const benchmarkColor = ctx.barBenchmarkColor || palette.accent || palette.colors[1] || '#ef4444';
+      const markLine = ctx.barBenchmarkLine ? {
+        symbol: 'none',
+        lineStyle: {
+          type: ctx.barBenchmarkStyle || 'dashed',
+          color: benchmarkColor,
+          width: 2
+        },
+        label: {
+          show: true,
+          position: 'end' as const,
+          formatter: `${ctx.barBenchmarkLabel || 'Target Benchmark'} (${ctx.barBenchmarkValue}${(metricMode === 'paper_prevalence' || metricMode === 'tag_share') ? '%' : ''})`,
+          fontFamily: font,
+          fontSize: Math.max(9, fontSize - 2),
+          color: benchmarkColor,
+          fontWeight: 'bold' as const
+        },
+        data: [{ yAxis: ctx.barBenchmarkValue }]
+      } : undefined;
+
+      let errorBarSeries: any = null;
+      if (ctx.enableErrorBars && (metricMode === 'avg_qa' || metricMode === 'avg_citation')) {
+        const numTargetKey = metricMode === 'avg_qa' ? 'Overall_QA' : 'citation_count';
+        const errData: any[] = [];
+        categories.forEach((cat, cIdx) => {
+          const pList = activeCountsMap.get(cat) || [];
+          const statsObj = computeGroupStatistics(pList, numTargetKey);
+          const bounds = getErrorBounds(statsObj, ctx.errorBarType || 'std_error');
+          errData.push([cIdx, bounds.lower, bounds.upper]);
+        });
+
+        errorBarSeries = {
+          name: 'Error Bounds',
+          type: 'custom',
+          renderItem: (params: any, api: any) => {
+            const xValue = api.value(0);
+            const lowPoint = api.coord([xValue, api.value(1)]);
+            const highPoint = api.coord([xValue, api.value(2)]);
+            const halfWidth = 5;
+            const strokeColor = palette.text;
+            return {
+              type: 'group',
+              children: [
+                {
+                  type: 'line',
+                  shape: { x1: lowPoint[0], y1: lowPoint[1], x2: highPoint[0], y2: highPoint[1] },
+                  style: api.style({ stroke: strokeColor, lineWidth: 1.5 })
+                },
+                {
+                  type: 'line',
+                  shape: { x1: lowPoint[0] - halfWidth, y1: lowPoint[1], x2: lowPoint[0] + halfWidth, y2: lowPoint[1] },
+                  style: api.style({ stroke: strokeColor, lineWidth: 1.5 })
+                },
+                {
+                  type: 'line',
+                  shape: { x1: highPoint[0] - halfWidth, y1: highPoint[1], x2: highPoint[0] + halfWidth, y2: highPoint[1] },
+                  style: api.style({ stroke: strokeColor, lineWidth: 1.5 })
+                }
+              ]
+            };
+          },
+          data: errData,
+          z: 10
+        };
       }
-    }]
+
+      return [
+        {
+          name: metricMode.replace(/_/g, ' ').toUpperCase(),
+          type: 'bar',
+          barWidth: ctx.barThickness,
+          barCategoryGap: `${ctx.barGap}%`,
+          data: valuesData,
+          markLine,
+          label: {
+            show: showDataLabels,
+            position: labelPos as any,
+            distance: labelDist,
+            rotate: labelRot,
+            fontFamily: font,
+            fontSize: labelFSize,
+            fontWeight: labelFWeight,
+            fontStyle: labelFStyle,
+            lineHeight: labelLHeight,
+            color: ctx.universalLabelColor || ctx.barLabelColor 
+              ? (ctx.universalLabelColor === 'foreground' ? palette.text : (ctx.universalLabelColor || ctx.barLabelColor))
+              : palette.text,
+            formatter: (params: any) => {
+              if (!showZero && (params.data?.paperCount === 0 || params.value === 0)) {
+                return '';
+              }
+              if (minThresh > 0) {
+                const rawPct = parseFloat(params.data?.prevalencePct ?? '0');
+                if (!isNaN(rawPct) && rawPct < minThresh) return '';
+              }
+              return params.data?.formattedLabel ?? params.value;
+            }
+          }
+        },
+        ...(errorBarSeries ? [errorBarSeries] : []),
+        ...(showLegend ? [{
+          type: 'pie' as const,
+          radius: [0, 0],
+          silent: true,
+          label: { show: false },
+          labelLine: { show: false },
+          data: legendData
+        }] : [])
+      ];
+    })()
   };
 }
 
@@ -347,11 +468,11 @@ export function generateHorizontalBarOption(ctx: ChartGeneratorContext): echarts
   }
   if (barSorting === 'desc') {
     categories.sort((a, b) => {
-      if (isOther(a)) return -1;
-      if (isOther(b)) return 1;
+      if (isOther(a)) return 1;
+      if (isOther(b)) return -1;
       const valA = computeMetricValue(activeCountsMap.get(a)!, metricMode, papers.length, totalExtractedTags);
       const valB = computeMetricValue(activeCountsMap.get(b)!, metricMode, papers.length, totalExtractedTags);
-      return valA - valB;
+      return valB - valA;
     });
   } else if (barSorting === 'asc') {
     categories.sort((a, b) => {
@@ -411,9 +532,20 @@ export function generateHorizontalBarOption(ctx: ChartGeneratorContext): echarts
       forceCohortDenominator: ctx.forceCohortDenominator
     });
 
+    const patternStyle = getSeriesPatternStyle(idx, color, ctx.enableHatchPatterns ?? false);
+    const isHatching = Boolean(ctx.enableHatchPatterns);
+    const fillStyle = isHatching
+      ? patternStyle
+      : {
+          color: createHorizontalGradient(color, 1, 0.84),
+          borderColor: hexToRgba(color, 0.9),
+          borderWidth: 0.5
+        };
+
     return {
       name: cat,
       value: val,
+      color,
       paperCount,
       tagCount,
       prevalencePct,
@@ -421,8 +553,14 @@ export function generateHorizontalBarOption(ctx: ChartGeneratorContext): echarts
       activePctStr,
       formattedLabel,
       itemStyle: {
-        color,
+        ...fillStyle,
         borderRadius: [0, barBorderRadius, barBorderRadius, 0]
+      },
+      emphasis: {
+        itemStyle: {
+          shadowBlur: 10,
+          shadowColor: hexToRgba(color, 0.35)
+        }
       }
     };
   });
@@ -449,7 +587,7 @@ export function generateHorizontalBarOption(ctx: ChartGeneratorContext): echarts
       name: label,
       icon: ctx.legendIcon && ctx.legendIcon !== 'inherit' ? ctx.legendIcon : 'roundRect',
       itemStyle: {
-        color: itemData.itemStyle.color
+        color: itemData.color
       }
     };
   });
@@ -477,11 +615,12 @@ export function generateHorizontalBarOption(ctx: ChartGeneratorContext): echarts
   const legendPos = legendPosMap[resolvedPosKey] || { bottom: legDist, left: 'center' };
   const legendOrient = (isLeft || isRight) ? 'vertical' : 'horizontal';
 
+  const benchmarkColor = barBenchmarkColor || palette.accent || palette.colors[1] || '#ef4444';
   const markLine = barBenchmarkLine ? {
     symbol: 'none',
     lineStyle: {
       type: barBenchmarkStyle,
-      color: barBenchmarkColor || '#ef4444',
+      color: benchmarkColor,
       width: 2
     },
     label: {
@@ -490,7 +629,7 @@ export function generateHorizontalBarOption(ctx: ChartGeneratorContext): echarts
       formatter: `${barBenchmarkLabel || 'Target Benchmark'} (${barBenchmarkValue}${(metricMode === 'paper_prevalence' || metricMode === 'tag_share') ? '%' : ''})`,
       fontFamily: font,
       fontSize: Math.max(9, fontSize - 2),
-      color: barBenchmarkColor || '#ef4444',
+      color: benchmarkColor,
       fontWeight: 'bold' as const
     },
     data: [{ xAxis: barBenchmarkValue }]
@@ -581,48 +720,97 @@ export function generateHorizontalBarOption(ctx: ChartGeneratorContext): echarts
       categories: categories,
       inverse: true
     }),
-    series: [
-      {
-        name: metricMode.replace(/_/g, ' ').toUpperCase(),
-        type: 'bar',
-        barWidth: barThickness,
-        barCategoryGap: `${barGap}%`,
-        data: valuesData,
-        label: {
-          show: showDataLabels,
-          position: labelPos as any,
-          distance: labelDist,
-          rotate: labelRot,
-          fontFamily: font,
-          fontSize: labelFSize,
-          fontWeight: labelFWeight,
-          fontStyle: labelFStyle,
-          lineHeight: labelLHeight,
-          color: ctx.universalLabelColor || ctx.barLabelColor 
-            ? (ctx.universalLabelColor === 'foreground' ? palette.text : (ctx.universalLabelColor || ctx.barLabelColor))
-            : palette.text,
-          formatter: (params: any) => {
-            if (!showZero && (params.data?.paperCount === 0 || params.value === 0)) {
-              return '';
+    series: (() => {
+      let errorBarSeries: any = null;
+      if (ctx.enableErrorBars && (metricMode === 'avg_qa' || metricMode === 'avg_citation')) {
+        const numTargetKey = metricMode === 'avg_qa' ? 'Overall_QA' : 'citation_count';
+        const errData: any[] = [];
+        categories.forEach((cat, cIdx) => {
+          const pList = activeCountsMap.get(cat) || [];
+          const statsObj = computeGroupStatistics(pList, numTargetKey);
+          const bounds = getErrorBounds(statsObj, ctx.errorBarType || 'std_error');
+          errData.push([cIdx, bounds.lower, bounds.upper]);
+        });
+
+        errorBarSeries = {
+          name: 'Error Bounds',
+          type: 'custom',
+          renderItem: (params: any, api: any) => {
+            const yValue = api.value(0);
+            const lowPoint = api.coord([api.value(1), yValue]);
+            const highPoint = api.coord([api.value(2), yValue]);
+            const halfHeight = 5;
+            const strokeColor = palette.text;
+            return {
+              type: 'group',
+              children: [
+                {
+                  type: 'line',
+                  shape: { x1: lowPoint[0], y1: lowPoint[1], x2: highPoint[0], y2: highPoint[1] },
+                  style: api.style({ stroke: strokeColor, lineWidth: 1.5 })
+                },
+                {
+                  type: 'line',
+                  shape: { x1: lowPoint[0], y1: lowPoint[1] - halfHeight, x2: lowPoint[0], y2: lowPoint[1] + halfHeight },
+                  style: api.style({ stroke: strokeColor, lineWidth: 1.5 })
+                },
+                {
+                  type: 'line',
+                  shape: { x1: highPoint[0], y1: highPoint[1] - halfHeight, x2: highPoint[0], y2: highPoint[1] + halfHeight },
+                  style: api.style({ stroke: strokeColor, lineWidth: 1.5 })
+                }
+              ]
+            };
+          },
+          data: errData,
+          z: 10
+        };
+      }
+
+      return [
+        {
+          name: metricMode.replace(/_/g, ' ').toUpperCase(),
+          type: 'bar',
+          barWidth: barThickness,
+          barCategoryGap: `${barGap}%`,
+          data: valuesData,
+          label: {
+            show: showDataLabels,
+            position: labelPos as any,
+            distance: labelDist,
+            rotate: labelRot,
+            fontFamily: font,
+            fontSize: labelFSize,
+            fontWeight: labelFWeight,
+            fontStyle: labelFStyle,
+            lineHeight: labelLHeight,
+            color: ctx.universalLabelColor || ctx.barLabelColor 
+              ? (ctx.universalLabelColor === 'foreground' ? palette.text : (ctx.universalLabelColor || ctx.barLabelColor))
+              : palette.text,
+            formatter: (params: any) => {
+              if (!showZero && (params.data?.paperCount === 0 || params.value === 0)) {
+                return '';
+              }
+              if (minThresh > 0) {
+                const rawPct = parseFloat(params.data?.activePctStr ?? '0');
+                if (!isNaN(rawPct) && rawPct < minThresh) return '';
+              }
+              return params.data?.formattedLabel ?? params.value;
             }
-            if (minThresh > 0) {
-              const rawPct = parseFloat(params.data?.activePctStr ?? '0');
-              if (!isNaN(rawPct) && rawPct < minThresh) return '';
-            }
-            return params.data?.formattedLabel ?? params.value;
-          }
+          },
+          markLine: markLine as any
         },
-        markLine: markLine as any
-      },
-      ...(showLegend ? [{
-        type: 'pie' as const,
-        radius: [0, 0],
-        silent: true,
-        label: { show: false },
-        labelLine: { show: false },
-        data: legendData
-      }] : [])
-    ]
+        ...(errorBarSeries ? [errorBarSeries] : []),
+        ...(showLegend ? [{
+          type: 'pie' as const,
+          radius: [0, 0],
+          silent: true,
+          label: { show: false },
+          labelLine: { show: false },
+          data: legendData
+        }] : [])
+      ];
+    })()
   };
 }
 
@@ -821,7 +1009,7 @@ export function generateStackedBarOption(ctx: ChartGeneratorContext): echarts.EC
           path: [pv]
         }, { levelCustomGroupLinks, umbrellanizerMap });
 
-        scopedSecVals.forEach(sv => {
+        scopedSecVals.forEach((sv: any) => {
           totalExtractedTags++;
           stackSet.add(sv);
           if (!rawMatrixMap.has(pv)) rawMatrixMap.set(pv, new Map());
@@ -1286,6 +1474,8 @@ export function generateStackedBarOption(ctx: ChartGeneratorContext): echarts.EC
             tagCount: seg.tagCount,
             itemStyle: {
               color: seg.patternStyle.color || seg.baseColor,
+              borderColor: palette.bg,
+              borderWidth: 1,
               borderRadius: barBorderRadius > 0 && isLastSegmentInBar ? (isHorizontal ? [0, barBorderRadius, barBorderRadius, 0] : [barBorderRadius, barBorderRadius, 0, 0]) : 0,
               ...seg.patternStyle
             },
@@ -1345,8 +1535,17 @@ export function generateStackedBarOption(ctx: ChartGeneratorContext): echarts.EC
         barGap: `${barGap}%`,
         itemStyle: {
           color: patternStyle.color || baseColor,
+          borderColor: palette.bg,
+          borderWidth: 1,
           borderRadius: barBorderRadius > 0 ? (sIdx === stacks.length - 1 ? (isHorizontal ? [0, barBorderRadius, barBorderRadius, 0] : [barBorderRadius, barBorderRadius, 0, 0]) : 0) : 0,
           ...patternStyle
+        },
+        emphasis: {
+          focus: 'series',
+          itemStyle: {
+            shadowBlur: 8,
+            shadowColor: hexToRgba(palette.text, 0.25)
+          }
         },
         data: categories.map(cat => {
           const rawVal = catStackValues.get(cat)?.get(stk) || 0;
@@ -1804,9 +2003,9 @@ export function generateHorizontalBarScatterOption(ctx: ChartGeneratorContext): 
   // Academic palette harmonization
   const primaryBarColor = barColorCustom || palette.colors[0] || '#2b5c8f';
   const isDefaultScatter = !scatterColor || scatterColor === '#d9534f';
-  const effectiveScatterColor = isDefaultScatter ? (palette.colors[1] || '#d9534f') : scatterColor;
+  const effectiveScatterColor = isDefaultScatter ? (palette.accent || palette.colors[1] || '#d9534f') : scatterColor;
   const isDefaultBorder = !scatterBorderColor || scatterBorderColor === '#900';
-  const effectiveScatterBorder = isDefaultBorder ? (palette.colors[1] || '#900') : scatterBorderColor;
+  const effectiveScatterBorder = isDefaultBorder ? (palette.accent || palette.colors[1] || '#900') : scatterBorderColor;
 
   const maxBarVal = Math.max(...barDataRaw, 10);
   const calculatedCeiling = (typeof barValueCeiling === 'number' && barValueCeiling > 0)
@@ -1836,29 +2035,28 @@ export function generateHorizontalBarScatterOption(ctx: ChartGeneratorContext): 
   const effectiveLabelWidth = ctx.barYAxisWidth ?? ctx.axisLabelWidthY ?? 140;
   const effectiveLabelMargin = ctx.axisLabelMarginY ?? 8;
   const showYTitle = (ctx.showAxisTitleY ?? true) && Boolean(ctx.customAxisTitleY || primaryField);
-  const effectiveYTitleGap = ctx.axisTitleGapY ?? Math.max(42, effectiveLabelWidth + effectiveLabelMargin + 16);
-  const requiredYTitleClearance = showYTitle ? (effectiveYTitleGap + (ctx.axisTitleFontSizeY ?? Math.max(9, fontSize - 1)) + 16) : (effectiveLabelWidth + effectiveLabelMargin + 20);
+  const titleFontSize = ctx.axisTitleFontSizeY ?? Math.max(9, fontSize - 1);
+  const baseCategoryClearance = effectiveLabelWidth + effectiveLabelMargin;
+  const requiredYTitleClearance = showYTitle 
+    ? (baseCategoryClearance + titleFontSize + 28) 
+    : (baseCategoryClearance + 20);
 
   const autoGridTop = hasEChartsTitle ? (showLegend && isTop ? 105 + legDist : 95) : (showLegend && isTop ? 65 + legDist : 48);
   const autoGridBottom = showLegend && isBottom ? Math.max(68, 48 + (axisTitleGapX ?? 26) + legDist) : 40;
-  const autoGridLeft = showLegend && isLeft ? Math.max(requiredYTitleClearance, 50 + legDist) : requiredYTitleClearance;
+  const autoGridLeft = showLegend && isLeft ? Math.max(30, 50 + legDist) : 25;
   const autoGridRight = showLegend && isRight ? Math.max(80, 50 + legDist) : 55;
 
   let calculatedGridLeft = autoGridLeft;
-  if (barGridLeft !== undefined && typeof barGridLeft === 'number') {
-    if (barGridLeft <= 40) {
-      calculatedGridLeft = Math.max(requiredYTitleClearance, Math.round(1200 * (barGridLeft / 100)));
-    } else {
-      calculatedGridLeft = Math.max(requiredYTitleClearance, barGridLeft);
-    }
-  } else if (ctx.gridMarginLeft !== undefined && typeof ctx.gridMarginLeft === 'number') {
-    calculatedGridLeft = Math.max(requiredYTitleClearance, ctx.gridMarginLeft);
+  if (ctx.gridMarginLeft !== undefined && typeof ctx.gridMarginLeft === 'number') {
+    calculatedGridLeft = ctx.gridMarginLeft;
+  } else if (barGridLeft !== undefined && typeof barGridLeft === 'number') {
+    calculatedGridLeft = barGridLeft;
   }
 
   const effectiveGridTop = barGridTop !== undefined ? barGridTop : (ctx.gridMarginTop ?? autoGridTop);
   const effectiveGridBottom = barGridBottom !== undefined ? barGridBottom : (ctx.gridMarginBottom ?? autoGridBottom);
   const effectiveGridLeft = calculatedGridLeft;
-  const effectiveGridRight = barGridRight !== undefined ? (typeof barGridRight === 'number' && barGridRight <= 30 ? Math.max(30, Math.round(1200 * (barGridRight / 100))) : barGridRight) : (ctx.gridMarginRight ?? autoGridRight);
+  const effectiveGridRight = barGridRight !== undefined ? barGridRight : (ctx.gridMarginRight ?? autoGridRight);
 
   const grid = resolveUniversalGrid(ctx, {
     top: effectiveGridTop,
@@ -2029,8 +2227,16 @@ export function generateHorizontalBarScatterOption(ctx: ChartGeneratorContext): 
         xAxisIndex: 0,
         barWidth: barThickness ? `${barThickness}px` : '42%',
         itemStyle: {
-          color: primaryBarColor,
+          color: createHorizontalGradient(primaryBarColor, 1, 0.84),
+          borderColor: hexToRgba(primaryBarColor, 0.9),
+          borderWidth: 0.5,
           borderRadius: [0, barBorderRadius, barBorderRadius, 0]
+        },
+        emphasis: {
+          itemStyle: {
+            shadowBlur: 8,
+            shadowColor: hexToRgba(primaryBarColor, 0.35)
+          }
         },
         data: reversedBarData,
         label: {
@@ -2055,6 +2261,13 @@ export function generateHorizontalBarScatterOption(ctx: ChartGeneratorContext): 
           color: effectiveScatterColor,
           borderColor: effectiveScatterBorder,
           borderWidth: scatterBorderWidth
+        },
+        emphasis: {
+          scale: 1.3,
+          itemStyle: {
+            shadowBlur: 10,
+            shadowColor: hexToRgba(effectiveScatterColor, 0.5)
+          }
         },
         data: reversedScatterData,
         label: {

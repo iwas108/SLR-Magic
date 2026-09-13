@@ -204,6 +204,16 @@ export type ThemePreset =
   | 'frontiers_oceanic'
   | 'cell_genomics_magenta'
   | 'dark_neon_science'
+  | 'nature_biotech_lavender'
+  | 'cell_systems_cyan'
+  | 'acm_siggraph_aurora'
+  | 'ieee_robotics_amber'
+  | 'elsevier_geochem_terracotta'
+  | 'aps_quantum_violet'
+  | 'nih_nlm_clinical'
+  | 'who_epidemiology_teal'
+  | 'springer_humanities_sepia'
+  | 'nature_climate_sky'
   | 'degrade_emerald'
   | 'degrade_crimson'
   | 'degrade_amber'
@@ -215,7 +225,29 @@ export type ThemePreset =
   | 'degrade_cyan'
   | 'degrade_lime'
   | 'degrade_plum'
-  | 'degrade_slate';
+  | 'degrade_slate'
+  | 'degrade_magma_dark'
+  | 'degrade_viridis_academic'
+  | 'degrade_warm_bronze'
+  | 'degrade_arctic_ice'
+  | 'stanford_cardinal_red'
+  | 'yale_historic_blue'
+  | 'princeton_orange_black'
+  | 'columbia_crown_blue'
+  | 'oxford_navy_gold'
+  | 'caltech_persimmon'
+  | 'berkeley_blue_gold'
+  | 'cmu_tartan_red'
+  | 'eth_zurich_red'
+  | 'nature_neuro_purple'
+  | 'science_robotics_cobalt'
+  | 'cell_stem_cell_teal'
+  | 'imperial_college_blue'
+  | 'sorbonne_paris_crimson'
+  | 'tokyo_todai_blue'
+  | 'degrade_solar_flare'
+  | 'degrade_deep_ocean'
+  | 'dark_tokyo_cyber';
 
 export type SmartColorMode = 
   | 'branch_gradient' 
@@ -271,6 +303,12 @@ export interface ThemePalette {
   text: string;
   subtext: string;
   border: string;
+  accent?: string;
+  secondary?: string;
+  surface?: string;
+  gridLine?: string;
+  heatScale?: string[];
+  isDark?: boolean;
 }
 
 export interface SunburstLevelConfig {
@@ -333,9 +371,17 @@ export interface VisualizerModalProps {
   isOpen: boolean;
   onClose: () => void;
   papers: any[];
+  allCohortPapers?: any[];
+  projectId?: string | number;
   totalUnfilteredCount?: number;
   isFiltered?: boolean;
   umbrellanizerMap?: Record<string, Record<string, string>>;
+  autoFetchFromDb?: boolean;
+  initialCohortScope?: 'full' | 'filtered';
+  savedCharts?: any[];
+  isViewerMode?: boolean;
+  onViewerSaveChart?: (chart: any) => void;
+  onViewerDeleteChart?: (id: string) => void;
 }
 
 export interface BreakdownRow {
@@ -461,6 +507,18 @@ export interface SlotConfig {
   axisTitleLocationY?: AxisLocation;
   axisTitleGapX?: number;
   axisTitleGapY?: number;
+  axisTitleRotateX?: number;
+  axisTitleRotateY?: number;
+  axisTitleAlignX?: 'left' | 'center' | 'right';
+  axisTitleAlignY?: 'left' | 'center' | 'right';
+  axisTitleOffsetX_X?: number;
+  axisTitleOffsetY_X?: number;
+  axisTitleOffsetX_Y?: number;
+  axisTitleOffsetY_Y?: number;
+  axisTitlePrefixX?: string;
+  axisTitleSuffixX?: string;
+  axisTitlePrefixY?: string;
+  axisTitleSuffixY?: string;
   // Comprehensive Scientific Axis Tick Labels Customization
   showAxisLabelX?: boolean;
   showAxisLabelY?: boolean;
@@ -622,6 +680,9 @@ export interface SlotConfig {
   roseType?: 'none' | 'radius' | 'area';
   piePadAngle?: number;
   pieCornerRadius?: number;
+  pieSort?: 'desc' | 'asc' | 'none';
+  pieStartAngle?: number;
+  pieMinAngle?: number;
   treemapAlgorithm?: 'squarified' | 'sliceAndDice' | 'binary';
   treemapSquareRatio?: number;
   treemapVisibleDepth?: number;
@@ -755,9 +816,13 @@ export interface SlotConfig {
   funnelGap?: number;
   funnelNeckWidth?: number;
   funnelNeckHeight?: number;
+  funnelLabelPosition?: 'inside' | 'outside' | 'left' | 'right';
+  funnelSort?: 'descending' | 'ascending' | 'none';
   boxplotBoxWidth?: number;
   boxplotShowScatter?: boolean;
   boxplotOrientation?: 'vertical' | 'horizontal';
+  boxplotFillColor?: string;
+  boxplotBorderColor?: string;
   scatterPointSize?: number;
   scatterPointOpacity?: number;
   scatterShowRegression?: boolean;
@@ -795,12 +860,17 @@ export interface SlotConfig {
   graphGravity?: number;
   graphCurveness?: number;
   graphShowLinkWeights?: boolean;
+  graphNodeSize?: number;
+  graphDraggable?: boolean;
   gaugeStartAngle?: number;
   gaugeEndAngle?: number;
   gaugePointerWidth?: number;
   gaugeDialWidth?: number;
+  gaugeUnit?: string;
+  gaugeSplitNumber?: number;
   calendarCellSize?: number;
   calendarYear?: string;
+  calendarColorPreset?: 'academic' | 'viridis' | 'plasma' | 'thermal' | 'coolwarm';
   stackedNormalized?: boolean;
   stackedReverseOrder?: boolean;
   stackedPerBarSorting?: 'none' | 'desc' | 'asc';
@@ -1052,6 +1122,18 @@ export interface VisualizerPresetPayload {
   axisTitleLocationY?: AxisLocation;
   axisTitleGapX?: number;
   axisTitleGapY?: number;
+  axisTitleRotateX?: number;
+  axisTitleRotateY?: number;
+  axisTitleAlignX?: 'left' | 'center' | 'right';
+  axisTitleAlignY?: 'left' | 'center' | 'right';
+  axisTitleOffsetX_X?: number;
+  axisTitleOffsetY_X?: number;
+  axisTitleOffsetX_Y?: number;
+  axisTitleOffsetY_Y?: number;
+  axisTitlePrefixX?: string;
+  axisTitleSuffixX?: string;
+  axisTitlePrefixY?: string;
+  axisTitleSuffixY?: string;
   // Comprehensive Scientific Axis Tick Labels Customization
   showAxisLabelX?: boolean;
   showAxisLabelY?: boolean;
@@ -1435,6 +1517,8 @@ export interface VisualizerPresetPayload {
   treemapVisibleMin?: number;
   treemapChildrenVisibleMin?: number;
   treemapLevelConfigs?: Record<number, TreemapLevelConfig>;
+  funnelLabelPosition?: 'inside' | 'outside' | 'left' | 'right';
+  funnelSort?: 'descending' | 'ascending' | 'none';
   funnelLabelFontSize?: number;
   funnelLabelFontWeight?: 'normal' | '500' | '600' | 'bold' | '800';
   funnelLabelFontStyle?: 'normal' | 'italic';
@@ -1475,4 +1559,16 @@ export interface VisualizerPresetPayload {
   smartColorPropagation?: SmartColorPropagation;
   scatterSortMode?: 'prevalence_desc' | 'prevalence_asc' | 'scatter_desc' | 'scatter_asc' | 'alpha' | 'dataset';
   otherCategoryLabel?: string;
+}
+
+export interface SavedChart {
+  id: string;
+  project_id: string;
+  title: string;
+  description?: string;
+  chart_type: string;
+  layout_mode: string;
+  config_payload: string;
+  created_at: string;
+  updated_at: string;
 }

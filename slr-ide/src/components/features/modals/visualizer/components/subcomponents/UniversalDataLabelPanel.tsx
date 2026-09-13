@@ -3,7 +3,7 @@ import { useVisualizerContext } from '../../context/VisualizerContext';
 import { Tag, Sliders, Type, RotateCw, AlignLeft, ShieldAlert, Sparkles, Hash, ArrowLeftRight, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import type { DisplayFormatTemplate } from '../../types';
 
-export function UniversalDataLabelPanel() {
+export function UniversalDataLabelPanel({ embedded = false }: { embedded?: boolean } = {}) {
   const { config, style } = useVisualizerContext();
   const {
     showDataLabels,
@@ -46,27 +46,8 @@ export function UniversalDataLabelPanel() {
     setBarLabelFormat
   } = config;
 
-  return (
-    <div className="space-y-4 p-3.5 bg-card border border-border rounded-2xl shadow-xs">
-      {/* 1. Header with Master Switch */}
-      <div className="flex items-center justify-between pb-2 border-b border-border/60">
-        <span className="text-xs font-extrabold uppercase tracking-wider text-primary flex items-center gap-1.5">
-          <Tag className="w-3.5 h-3.5" />
-          Universal Data Labels & Metrics
-        </span>
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showDataLabels}
-            onChange={(e) => setShowDataLabels(e.target.checked)}
-            className="w-3.5 h-3.5 rounded text-primary"
-          />
-          <span className="text-xs font-bold text-foreground">Show Labels</span>
-        </label>
-      </div>
-
-      {showDataLabels && (
-        <div className="space-y-4">
+  const innerContent = (
+    <div className="space-y-4">
           {/* 2. Format Template, Position & Decimal Precision */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
@@ -509,7 +490,39 @@ export function UniversalDataLabelPanel() {
             </div>
           </div>
         </div>
-      )}
+      );
+
+  if (embedded) {
+    if (!showDataLabels) {
+      return (
+        <div className="p-3 text-center text-xs text-muted-foreground border border-dashed border-border/70 rounded-xl">
+          Data labels are currently disabled. Turn on the "Show Labels" toggle above to configure templates and placement.
+        </div>
+      );
+    }
+    return innerContent;
+  }
+
+  return (
+    <div className="space-y-4 p-3.5 bg-card border border-border rounded-2xl shadow-xs">
+      {/* 1. Header with Master Switch */}
+      <div className="flex items-center justify-between pb-2 border-b border-border/60">
+        <span className="text-xs font-extrabold uppercase tracking-wider text-primary flex items-center gap-1.5">
+          <Tag className="w-3.5 h-3.5" />
+          Universal Data Labels & Metrics
+        </span>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showDataLabels}
+            onChange={(e) => setShowDataLabels(e.target.checked)}
+            className="w-3.5 h-3.5 rounded text-primary"
+          />
+          <span className="text-xs font-bold text-foreground">Show Labels</span>
+        </label>
+      </div>
+
+      {showDataLabels && innerContent}
     </div>
   );
 }

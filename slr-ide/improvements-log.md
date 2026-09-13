@@ -1,3 +1,535 @@
+## #571 - Academic Color Palette Studio: 76 Prestigious Presets Expansion, Instant Search & Domain Filter Pills, and 100% Harmonic Geometry Across All 19 Chart Types (2026-09-13)
+- **Goal**: Expand the Academic Color Palette catalog to 76 prestigious presets, ensure 100% of presets possess complete semantic tokens (`colors`, `bg`, `text`, `subtext`, `border`, `accent`, `secondary`, `surface`, `gridLine`, `heatScale`, `isDark`), build an ergonomic Palette Studio with instant search and domain category filtering, and ensure every single chart type deeply harmonizes with the active palette.
+- **Architectural Implementation**:
+  1. **Palette Suite Expansion to 76 Presets (`types.ts`, `themePalettes.ts`)**:
+     - Added 16 brand-new prestigious academic presets across elite global universities, flagship journals, sequential degradation ramps, and high-contrast dark themes:
+       - `princeton_orange_black` (Princeton University Tiger Orange & Slate)
+       - `columbia_crown_blue` (Columbia University Crown Blue & Slate)
+       - `oxford_navy_gold` (Oxford University Deep Navy & Gold)
+       - `caltech_persimmon` (Caltech Persimmon Orange & Slate)
+       - `berkeley_blue_gold` (UC Berkeley California Blue & Gold)
+       - `cmu_tartan_red` (Carnegie Mellon Tartan Plaid & Crimson)
+       - `eth_zurich_red` (ETH Zürich Swiss Red & Pure Slate)
+       - `nature_neuro_purple` (Nature Neuroscience Deep Violet & Cyan)
+       - `science_robotics_cobalt` (Science Robotics Cyber Cobalt & Amber)
+       - `cell_stem_cell_teal` (Cell Stem Cell Regenerative Teal & Vermilion)
+       - `imperial_college_blue` (Imperial College London Blue & Steel)
+       - `sorbonne_paris_crimson` (Sorbonne Université Paris Ruby & Gold)
+       - `tokyo_todai_blue` (The University of Tokyo Todai Blue & Gold)
+       - `degrade_solar_flare` (Sequential Degradation: Solar Flare Plasma)
+       - `degrade_deep_ocean` (Sequential Degradation: Abyssal Deep Ocean)
+       - `dark_tokyo_cyber` (Dark Neo-Tokyo High-Contrast Academic Slate)
+     - Upgraded 100% of all 60 existing presets (including all 11 sequential degradation ramps) to have explicit, hand-tailored `accent`, `secondary`, `surface`, `gridLine`, and 6-stop `heatScale` arrays.
+  2. **Harmonic Color Shading & Utility Engine (`colorUtils.ts`)**:
+     - Added `resolvePaletteGridLine(palette, fallback)` resolving theme-appropriate gridlines (`palette.gridLine`, dark translucent fallback `rgba(255, 255, 255, 0.08)`, or light slate).
+     - Added `resolvePaletteSurface(palette, fallback)` providing elevated card backgrounds (`#111827` dark vs `#ffffff` light).
+     - Hardened `resolvePaletteHeatScale`, `resolvePaletteAccent`, and `resolvePaletteSecondary` to gracefully fall back without runtime errors.
+  3. **Universal Palette Studio Ergonomics (`UniversalPaletteFontPanel.tsx`)**:
+     - Implemented real-time search filtering (`paletteSearch`) across all 76 preset names and identifiers with 1-click clear.
+     - Designed 5 domain categorization pills with dynamic counters: `All (76)`, `Elite Universities (15)`, `Top Journals (38)`, `Sequential (19)`, and `Dark Mode (4)`.
+     - Built rich swatch cards displaying 6 primary tones, an accent pip badge, and a `DARK` badge for dark themes.
+     - Added empty search fallback state with 1-click reset trigger.
+  4. **Deep Per-Chart Artistic Integration ("One-by-One") Across All 19 Scientific Chart Types**:
+     - **Categorical & Clustered Bars (`bar_vertical`, `bar_horizontal`, `clustered_bar`, `stacked_bar`, `horizontal_bar_scatter`)**: Benchmark target reference lines dynamically styled with `resolvePaletteAccent(palette)`.
+     - **Trend Lines (`line`)**: Epi-simulation TX event scatter and threshold boundaries bound to `resolvePaletteAccent(palette)`.
+     - **Correlations (`scatter`, `bubble`, `boxplot`)**: Linear OLS and mean regression lines dynamically bound to `resolvePaletteAccent(palette)`; jitter scatter points styled with accent color and soft glow.
+     - **Matrix Heatmaps (`heatmap`, `calendar`)**: Both continuous visualMap scales dynamically hydrate from `resolvePaletteHeatScale(palette)`, ensuring each of the 76 presets renders an authentic domain-tailored color ramp.
+     - **Radar & Spider (`radar`)**: Target requirement threshold line and tag share series styled with `resolvePaletteAccent(palette)` and `resolvePaletteSecondary(palette)`; stepped split areas dynamically tinted using `adjustColorShade(palette.bg, ...)`.
+     - **Gauge & Funnel (`gauge`, `funnel`)**: Gauge pointer colored with `palette.accent`; split lines refined with subtle contrast; Funnel vertical gradient fills and borders framed cleanly against `palette.bg`.
+     - **Hierarchical Trees (`treemap`, `sunburst`, `sankey`)**: Treemap contrast borders elevated with comprehensive `isDark` detection spanning all dark academic palettes.
+  5. **Cross-Module Mirroring & Parity (`scripts/mirror-to-viewer.mjs`)**:
+     - Synchronized all visualizer generators, constants, types, and UI subcomponents across `slr-ide` and `slr-viewer`.
+     - Verified clean builds with `npx tsc --noEmit` in `slr-ide` (0 errors) and `npm run typecheck` in `slr-viewer` (0 errors).
+- **Files Modified**:
+  - `slr-ide/src/components/features/modals/visualizer/types.ts`
+  - `slr-ide/src/components/features/modals/visualizer/constants/themePalettes.ts`
+  - `slr-ide/src/components/features/modals/visualizer/utils/colorUtils.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/kpiNetworkGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/hierarchicalGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/UniversalPaletteFontPanel.tsx`
+  - `slr-ide/files.md`
+  - `slr-ide/improvements-log.md`
+  - `improvements.md`
+- **Verification**: `npx tsc --noEmit` in `slr-ide` exited with code 0; `npm run typecheck` in `slr-viewer` exited with code 0.
+
+## #570 - Deep Per-Chart Integration of Academic Color Palettes (58 Presets) Across All 19 Scientific Chart Types (2026-09-12)
+- **Goal**: Create deep, outstanding artistic integration of the Academic Color Palette system across every single chart type in the Visualizer Studio. Expand the palette suite with 14 prestigious new academic and scientific domain presets (expanding total from 44 to 58 presets), enrich palette interfaces with semantic design tokens, and intelligently craft each chart generator one-by-one so that clicking any Academic Color Palette transforms the visualization into publication-ready art.
+- **Architectural Implementation**:
+  1. **Academic Palette Suite Expansion & Design Token Architecture (`themePalettes.ts`, `types.ts`)**:
+     - Extended `ThemePalette` interface with first-class semantic design tokens: `accent`, `secondary`, `surface`, `gridLine`, `heatScale`, and `isDark`.
+     - Added 14 prestigious academic journal, society, and domain presets (now 58 total):
+       - `nature_biotech_lavender` (Nature Biotechnology Lavender & Jade)
+       - `cell_systems_cyan` (Cell Systems Bio-Cyan & Coral)
+       - `acm_siggraph_aurora` (ACM SIGGRAPH / VIS Aurora Spectral)
+       - `ieee_robotics_amber` (IEEE Robotics Cyber Amber & Slate)
+       - `elsevier_geochem_terracotta` (Elsevier Earth Terracotta & Deep Sea)
+       - `aps_quantum_violet` (APS Physical Review Quantum Violet)
+       - `nih_nlm_clinical` (NIH / NLM Clinical Coral & Pine)
+       - `who_epidemiology_teal` (WHO Epidemiology Deep Teal & Gold)
+       - `springer_humanities_sepia` (Springer Humanities Warm Sepia)
+       - `nature_climate_sky` (Nature Climate Change Glacier Sky)
+       - `degrade_magma_dark` (Sequential Degradation: Dark Magma Glow)
+       - `degrade_viridis_academic` (Sequential Degradation: Academic Viridis Spectrum)
+       - `degrade_warm_bronze` (Sequential Degradation: Warm Bronze & Amber)
+       - `degrade_arctic_ice` (Sequential Degradation: Arctic Glacier Ice)
+     - Enriched top publication presets (`academic_grayscale`, `ieee_blue`, `nature_emerald`, `science_contrast`, `acs_crimson`, `pnas_gold`, `oxford_burgundy`, `cell_amethyst`, `lancet_crimson`, `nejm_navy`, `springer_forest`, `jama_cardinal`) with tailored `accent`, `secondary`, and `heatScale` sequences.
+  2. **Palette Shader & Token Utilities (`colorUtils.ts`)**:
+     - Implemented `createVerticalGradient(color, opacityStart, opacityEnd)` and `createHorizontalGradient(color, opacityStart, opacityEnd)` returning ECharts LinearGradient objects.
+     - Implemented `createRadialGradient(color, innerOpacity, outerOpacity)` for focal highlights.
+     - Implemented `resolvePaletteHeatScale(palette)` creating smooth multi-stop thermal gradients dynamically bound to the selected palette.
+     - Implemented `resolvePaletteAccent(palette, fallback)` and `resolvePaletteSecondary(palette, fallback)`.
+  3. **Universal Palette UI & Counter (`UniversalPaletteFontPanel.tsx`)**:
+     - Upgraded palette counter header to dynamically reflect `Object.keys(THEME_PALETTES).length` (58 Presets).
+     - Expanded preview swatch grid from 5 to 6 color tiles per card, showcasing the full depth of each palette.
+  4. **Deep Per-Chart Artistic Integration ("One-by-One") Across All 19 Chart Types**:
+     - **Categorical Bars (`bar_vertical`, `bar_horizontal`, `stacked_bar`, `horizontal_bar_scatter`)**: Direction-aware linear gradient fills, crisp 1px separation borders matching `palette.bg`, hover shadows, and benchmark lines harmonized with `palette.accent`.
+     - **Clustered Bars (`clustered_bar`)**: Dynamic orientation-aware gradients (`createHorizontalGradient` vs `createVerticalGradient`), rounded caps, hover series focus, and benchmark line harmonization.
+     - **Trend Lines (`line` in cohort & epistemic modes)**: Haloed ring markers (`borderColor: palette.bg, borderWidth: 2, shadowBlur: 4`), smooth gradient area fills, and distinct threshold/estimator color bindings mapped to `palette.accent`.
+     - **Proportions (`pie_donut`)**: Crisp slice separation (`borderWidth: 2.5, borderColor: palette.bg`), smooth hover popout (`scaleSize: 6, shadowBlur: 14`), and dynamic multi-level color shading.
+     - **Correlations (`scatter`, `bubble`, `boxplot`)**: Dual-tone scatter points, regression lines bound to `palette.accent`, translucent boxplot bodies (`hexToRgba(colors[0], 0.22)`), and glowing jitter points bound to `palette.accent`.
+     - **Hierarchical Trees (`treemap`, `sankey`, `sunburst`)**: Breadcrumbs styled to match `palette.border` and `palette.text`, Sankey nodes with subtle depth shadows and accent hover borders, and concentric Sunburst sectors with crisp 2px separation borders.
+     - **Matrix Heatmaps (`heatmap`, `calendar`)**: Visual map continuous color scales bound directly to `resolvePaletteHeatScale(palette)`, crisp cell borders matching `palette.bg`, and interactive cell hover focus.
+     - **KPI & Networks (`radar`, `funnel`, `gauge`, `graph`)**: Radar tag share curve harmonized with `palette.accent`, Funnel segments shaded with vertical linear gradients and crisp borders, Gauge progress arc shaded with linear gradients and pointer colored by `palette.accent`, and Graph nodes given glowing halos and adjacency hover emphasis.
+     - **Cartesian Gridlines & Tooltips (`axisConfigHelper.ts`, `generators/index.ts`)**: Supported `palette.gridLine` design token on Cartesian split lines, and elevated tooltip backgrounds with `palette.surface || palette.bg`.
+  5. **Cross-Module Mirroring (`mirror-to-viewer.mjs`)**:
+     - Synchronized all visualizer generators, constants, types, and utility updates across `slr-ide` and `slr-viewer`.
+- **Files Modified**:
+  - `slr-ide/src/components/features/modals/visualizer/types.ts`
+  - `slr-ide/src/components/features/modals/visualizer/constants/themePalettes.ts`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/UniversalPaletteFontPanel.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/utils/colorUtils.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/categoricalBarGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/clusteredBarGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/trendLineGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/proportionsGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/correlationGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/hierarchicalGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/matrixGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/kpiNetworkGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/axisConfigHelper.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/index.ts`
+  - `slr-ide/files.md`
+  - `slr-ide/improvements-log.md`
+- **Verification**: Executed `npx tsc --noEmit` across both `slr-ide` and `slr-viewer` (0 errors, Exit Code 0).
+
+## #569 - Visualizer Studio: Foolproof Scientific Auto-Newline, Protocol-Aware Word Wrap & Atomic Token Protection (2026-09-12)
+- **Goal**: Fix broken auto-newline formatting where wireless protocol designations (e.g. `Wi-Fi WLAN (802.11 b/g/ax)`) in clustered bar charts and categorical axes were shattered across lines as `b/`, `g/`, `ax)`, and make axis label wrapping 100% foolproof across all scientific, engineering, and compound notation.
+- **Root Cause**:
+  - `wrapAxisLabelText` in `axisConfigHelper.ts` contained a naive pre-splitting condition `if (unescaped.includes('/'))` that unconditionally sliced strings at every forward slash `/`, destroying sub-specifiers, protocol designations, acronyms, and fractions.
+- **Architectural Implementation**:
+  1. **Atomic Token Classifier (`isAtomicSlashToken`)**:
+     - Engineered `isAtomicSlashToken(token)` recognizing unbreakable domain patterns:
+       - Wireless & network protocols: `b/g/n`, `a/b/g/n/ac/ax`, `802.11b/g/n`, `TCP/IP`, `UDP/IP`, `IPv4/IPv6`, `2G/3G/4G/5G`, `CAN/LIN`, `SPI/I2C`.
+       - Units of measurement: `km/h`, `m/s`, `bits/s`, `samples/s`, `V/m`, `mW/cm2`, `kg/m3`, `mg/L`, `rad/s`, `Hz/s`.
+       - Abbreviations & conjunctions: `w/`, `w/o`, `c/o`, `b/c`, `a/k/a`, `and/or`, `either/or`, `yes/no`, `on/off`, `N/A`, `I/O`, `A/D`, `D/A`, `TX/RX`.
+       - Ratios & fractions: `1/2`, `3/4`, `24/7`, `10/100/1000`.
+       - Universal short-token guard: Any slash compound where any segment $\le 3$ characters or total length $\le 10$ characters is protected from splitting.
+  2. **Multi-Tier Semantic Word Wrapping Engine (`wrapAxisLabelText`)**:
+     - **Explicit Newline Preservation**: Recursively wraps explicit `\n` segments.
+     - **Semantic Category Boundary Delimitation**: Slashes with surrounding spaces (`\s+\/\s+`, e.g. `"Traffic / Smart City"`) cleanly separate into distinct lines while preserving delimiter semantics.
+     - **Parenthetical Block Isolation**: Isolates parenthetical specifications (e.g. `(802.11 b/g/ax)` or `(SVM)`), ensuring secondary qualifiers remain unified rather than breaking clumsily before closing brackets.
+     - **Lazy Compound Word Splitting**: Substantial multi-word compounds (e.g. `Agriculture/Horticulture`, `Communication-Enabled`) are kept together and only split at punctuation boundaries when the compound itself exceeds `maxCharsPerLine`, without injecting extraneous spaces.
+     - **Overflow Tolerance Guard**: Prevents chopping single letters (like `n` from `802.11b/g/n`) by applying a 2-character (or 20%) tolerance threshold for unbreakable single tokens.
+     - **Numeric Standard Sub-Splitter**: Naturally breaks compound standards like `802.11b/g/n` at the numeric standard boundary (`802.11` and `b/g/n`) when line limits necessitate wrapping.
+     - **Orphan Punctuation Re-Absorption**: Merges isolated closing brackets or punctuation (`/`, `)`) back into preceding lines.
+- **Files Modified**:
+  - `slr-ide/src/components/features/modals/visualizer/generators/axisConfigHelper.ts`
+  - `slr-viewer/src/components/final-cohort/visualizer/generators/axisConfigHelper.ts`
+
+## #568 - Visualizer Studio: Mathematical Category Span Resolution, 100% Y-Axis Title Visibility & Extended Typography Customization (2026-09-12)
+- **Goal**: Resolve invisible Y-axis title ("RQ2 Operational Domain") on Horizontal Bar & Scatter combo and other horizontal charts when set to "Middle / Center" (`axisTitleLocationY = 'middle'`) with compact left margins, and introduce comprehensive extended typography, angle rotation, micro-position offsets, custom color, and prefix/suffix customization controls.
+- **Root Cause**:
+  - In Apache ECharts, when `grid.containLabel: true`, the bounding box calculator accurately bounds `axisLabel` and `axisTick`, but strictly **ignores** `yAxis.name` when `nameLocation: 'middle'`.
+  - In previous turns, `axisConfigHelper.ts` had hardcoded `minRequiredGap` to assume a constant 148px label width (`labelWidth + labelMargin`), pushing `nameGap` to 170px.
+  - When actual category labels (e.g. "Manufacturing", "Automotive") had an empirical text width of only ~80px and the left margin was compact (e.g. 25px or 0px), the axis baseline sat at $X_{\text{axis}} = 25 + 80 = 105\text{px}$. Setting `nameGap = 170px` placed the title at $X_{\text{title}} = 105 - 170 = -65\text{px}$ (negative X coordinate), pushing it completely outside the canvas viewport where it was clipped and invisible.
+  - Furthermore, `nameRotate` was omitted on `yAxis`, causing ECharts to render the title horizontally by default (~240px wide), colliding with canvas bounds.
+- **Architectural Implementation**:
+  1. **Empirical Category Label Span Calculator (`estimateCategoryLabelSpan`)**:
+     - Added `estimateCategoryLabelSpan(categories, fontSize, labelWidth, overflow, labelMargin)` in `axisConfigHelper.ts` to compute the exact maximum rendered line width of category tick marks across wrapped lines.
+     - Formulated exact title placement: `titleGap = labelSpan + rawTitleGap + halfTitleThickness - offsetX`.
+     - Placed the title right at the user's configured gap (`rawTitleGap`, e.g. 5px) from the leftmost label edge, respecting the Gap slider with 1:1 pixel precision.
+  2. **Safe Minimum Margin Clearance Guard (`resolveUniversalGrid`)**:
+     - Computed `minRequiredTitleSpace = Math.round(titleThicknessY + titleGapY + 14)` when `showYTitle && isHorizontalChart && isMiddleY`.
+     - Clamped `grid.left = Math.max(minRequiredTitleSpace, rawLeft)` in both auto and custom margin modes, ensuring the canvas always provides enough margin ($X \ge 14\text{px}$) so the Y-axis title is mathematically guaranteed never to be pushed off-screen into negative coordinates.
+  3. **Extended Axis Title Customization Suite (`ScientificAxisConfigPanel.tsx`, `types.ts`, `defaultConfigs.ts`, `useVisualizerConfig.ts`, `VisualizerProvider.tsx`)**:
+     - Added collapsible **Extended Customization (Angle, Color, Offsets & Prefix)** panel to both X-Axis and Y-Axis title cards.
+     - **Rotation Angle**: Preset buttons (for Y: `90° Standard`, `0° Horizontal`, `270° Inverted`, `-90°`; for X: `0°`, `45°`, `90°`, `-45°`) plus interactive `-180°` to `180°` angle slider.
+     - **Alignment / Justification**: Segmented control for `Left / Start`, `Center`, and `Right / End` alignment.
+     - **Dedicated Title Color Picker**: Independent color swatch and hex input with quick theme color reset button.
+     - **Prefix & Suffix**: Quick inputs for title prefixes (e.g. `RQ2: `) and suffixes (e.g. ` (%)`, ` [N=46]`).
+     - **Micro-Position Offsets**: Fine-tuning sliders for horizontal nudge ($X$: -60px to +60px) and vertical nudge ($Y$: -60px to +60px) with single-click `Reset (0,0)` button.
+     - Synchronized slider ranges between `ScientificAxisConfigPanel.tsx` and `HorizontalBarScatterConfigPanel.tsx` (5px to 240px).
+- **Files Modified**:
+  - `slr-ide/src/components/features/modals/visualizer/types.ts`
+  - `slr-ide/src/components/features/modals/visualizer/constants/defaultConfigs.ts`
+  - `slr-ide/src/components/features/modals/visualizer/hooks/useVisualizerConfig.ts`
+  - `slr-ide/src/components/features/modals/visualizer/context/VisualizerProvider.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/generators/types.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/index.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/axisConfigHelper.ts`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/ScientificAxisConfigPanel.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/HorizontalBarScatterConfigPanel.tsx`
+  - Mirrored to `slr-viewer/`
+- **Verification**: Ran `node scripts/mirror-to-viewer.mjs`; verified `npx tsc --noEmit` in `slr-ide` (0 errors); verified `npm run typecheck` in `slr-viewer` (0 errors); verified `npm run build` in `slr-viewer` (Vite build passed in 2.61s); verified `npm run build` in `slr-ide` (64/64 Next.js routes compiled cleanly with exit code 0).
+
+## #567 - Visualizer Studio: Fixed Y-Axis Title Visibility for Top/End Location (2026-09-12)
+- **Goal**: Fix bug where selecting "Top / End" (`axisTitleLocationY = 'end'`) caused the Y-axis title ("RQ2 Operational Domain") to become completely invisible on horizontal bar and combo charts.
+- **Root Cause**:
+  - In `axisConfigHelper.ts` (`buildScientificAxisConfig`), the horizontal chart title gap formula unconditionally added `minLabelClearance` (148px) and clamped `titleGap` to at least 166px (`minRequiredGap = minLabelClearance + Math.max(16, titleFontSize + 4)`), regardless of `titleLocation`.
+  - In Apache ECharts, for `nameLocation: 'middle'`, `nameGap` is horizontal distance to the left of the axis line. However, for `nameLocation: 'end'`, `nameGap` is upward distance above the top of the axis!
+  - Passing `nameGap: 166` when `titleLocation === 'end'` pushed the title 166px straight up, landing at $Y \approx -121\text{px}$ outside the canvas viewport, rendering it invisible.
+- **Architectural Implementation**:
+  1. **Location-Aware Title Gap (`axisConfigHelper.ts`)**:
+     - Scoped `minLabelClearance` addition strictly to `isMiddleLocation` (`titleLocation === 'middle' || titleLocation === 'center' || !titleLocation`).
+     - For `titleLocation === 'end'` and `titleLocation === 'start'`, `titleGap` respects `rawTitleGap` directly (defaulting to 10px or user value, e.g. 5px), positioning the title right at the top/bottom boundary.
+  2. **Proper Header Alignment (`axisConfigHelper.ts`)**:
+     - In `nameTextStyle`, set `align: 'right'` and `verticalAlign: 'bottom'` when `isHorizontalChart && !isX && titleLocation === 'end'`.
+     - This right-aligns the title to the Y-axis baseline, placing it neatly on top of the category labels column ("Manufacturing", etc.) without overlapping top X-axis scales.
+- **Files Modified**: `slr-ide/src/components/features/modals/visualizer/generators/axisConfigHelper.ts`, mirrored to `slr-viewer/`.
+- **Verification**: Ran `node scripts/mirror-to-viewer.mjs`; verified `npx tsc --noEmit` in `slr-ide` (0 errors); verified `npm run typecheck` in `slr-viewer` (0 errors); verified `npm run build` in `slr-viewer` (Vite build passed in 2.65s); verified `npm run build` in `slr-ide` (64/64 Next.js routes compiled cleanly with exit code 0).
+
+## #566 - Visualizer Studio: Eliminating False Clearance Offsets to Enable Zero/Compact Left Margins (2026-09-12)
+- **Goal**: Enable full reduction of empty whitespace on the left of horizontal bar charts (including Horizontal Bar & Scatter Combo) so sliding Universal Chart Margins "Left" down to 0px or compact presets (20px–30px) immediately removes unused canvas void.
+- **Root Cause**:
+  - In `axisConfigHelper.ts` (`resolveUniversalGrid`) and `categoricalBarGenerators.ts` (`generateHorizontalBarScatterOption`), `grid.left` had `Math.max(requiredYTitleClearance, rawLeft)` where `requiredYTitleClearance` was forced to $\ge 190\text{px}$.
+  - Because `resolveUniversalGrid` specifies `containLabel: true`, ECharts automatically measures the title and category labels and bounds them within the chart area. When `containLabel: true`, `grid.left` is the margin outside the outermost label/title.
+  - Adding 190px on top of `containLabel: true` forced an unremovable 190px blank desert of whitespace to the left of the title, completely ignoring the user's slider even when dragged to `Left (0px)`.
+  - Furthermore, `rawLeft <= 40` was erroneously treated as a percentage and multiplied by 12, preventing margins between 0px and 40px from functioning.
+- **Architectural Implementation**:
+  1. **Direct Pixel Margins with `containLabel: true` (`axisConfigHelper.ts`, `categoricalBarGenerators.ts`)**:
+     - Removed `Math.max(requiredYTitleClearance, ...)` and `rawLeft <= 40` percentage multiplication from `resolveUniversalGrid` and `categoricalBarGenerators.ts`.
+     - In `resolveUniversalGrid`, `left` directly resolves `ctx.gridMarginLeft ?? ctx.barGridLeft ?? defaultGrid.left ?? 25`.
+     - In custom margin mode (`!isAuto`), setting `Left (0px)` passes `left: 0`, placing the title flush with container padding with 0px wasted void.
+     - In auto mode (`isAuto`), `left` defaults to a clean, compact 25px publication margin.
+  2. **Safe Title & Category Label Spacing (`axisConfigHelper.ts`)**:
+     - Retained anti-collision guarantee: `titleGap = Math.max(minLabelClearance + Math.max(16, titleFontSize + 4), titleGap)`.
+     - Category labels and Y-axis title remain clearly spaced from each other, while the outer left margin cleanly respects the user's slider.
+  3. **Config & Component Defaults (`useVisualizerConfig.ts`, `defaultConfigs.ts`, `HorizontalBarScatterConfigPanel.tsx`)**:
+     - Standardized default `barGridLeft` to 25px and slider range to `min={0}, max={300}, step={5}`.
+- **Files Modified**: `slr-ide/src/components/features/modals/visualizer/generators/axisConfigHelper.ts`, `slr-ide/src/components/features/modals/visualizer/generators/categoricalBarGenerators.ts`, `slr-ide/src/components/features/modals/visualizer/hooks/useVisualizerConfig.ts`, `slr-ide/src/components/features/modals/visualizer/constants/defaultConfigs.ts`, `slr-ide/src/components/features/modals/visualizer/components/subcomponents/HorizontalBarScatterConfigPanel.tsx`, mirrored to `slr-viewer/`.
+- **Verification**: Ran `node scripts/mirror-to-viewer.mjs`; verified `npx tsc --noEmit` in `slr-ide` (0 errors); verified `npm run typecheck` in `slr-viewer` (0 errors); verified `npm run build` in `slr-viewer` (Vite build passed in 4.75s); verified `npm run build` in `slr-ide` (64/64 Next.js routes compiled cleanly with exit code 0).
+
+## #565 - Visualizer Studio: Resolved Grid Margin Unit Collision & Category Label-Title Anti-Collision (2026-09-12)
+- **Goal**: Fix Section 7 margin slider glitch displaying "Right Margin (324%)" / "Left Margin (48%)" (Problem 1), eliminate Y-axis title overlap with category labels (Problem 2), and automatically resolve category label text-breaking issues (Problem 3) in the Scientific Visualization Studio.
+- **Root Cause**:
+  - **Problem 1 (Grid Margin Unit Collision)**: In `HorizontalBarScatterConfigPanel.tsx`, Section 7 Grid Margins used percentage sliders (`min={4}, max={35}`) whose `onChange` handler multiplied the value by 12 (`Math.round(1200 * (v / 100))`) to write pixel integers to `gridMarginLeft` / `gridMarginRight`. Due to bidirectional state syncing in `useVisualizerConfig.ts` (`barGridLeft` $\leftrightarrow$ `gridMarginLeft`), the pixel values (e.g., 48px, 324px) were written directly into `barGridLeft` and `barGridRight`, while the label continued formatting them with `%` (e.g. `{barGridRight}%`). This displayed bizarre slider values like `Right Margin (324%)` and crushed the left margin to `48px`.
+  - **Problem 2 (Y-Axis Title Collision)**: In `axisConfigHelper.ts`, `titleGap` clamping evaluated `effectiveLeft = ctx.gridMarginLeft ?? ...`. When `gridMarginLeft` was corrupted to 48px, `titleGap` was clamped down to `minLabelClearance + 4` (152px), leaving a mere 4px gap from the 148px category labels. An 18px bold title centered at 152px overlapped the category labels by 14px.
+  - **Problem 3 (Category Label Breaks)**: Words like "Manufacturing" broke into "Manufac / t / uring" because the available left margin collapsed to 48px, severely truncating the available drawing width.
+- **Architectural Implementation**:
+  1. **Standardized Pixel-Based Margins (`HorizontalBarScatterConfigPanel.tsx`, `useVisualizerConfig.ts`, `defaultConfigs.ts`)**:
+     - Converted Section 7 Left and Right Margins to clean pixel sliders (`px`) with appropriate physical bounds: Left Margin `min={60}, max={400}, step={5}`, Right Margin `min={20}, max={240}, step={5}`.
+     - Standardized default slot configurations to `barGridLeft: 200` and `barGridRight: 55`.
+     - In `useVisualizerConfig.ts`, added automatic normalization so legacy or percentage margin values $(\le 40)$ are safely scaled to responsive pixel equivalents without corrupting state.
+  2. **Enforced Anti-Collision Clearance (`axisConfigHelper.ts`, `categoricalBarGenerators.ts`)**:
+     - Updated `buildScientificAxisConfig` so the minimum required title gap enforces `minRequiredGap = minLabelClearance + Math.max(16, titleFontSize + 4)`.
+     - Set a safe floor for `effectiveLeft = Math.max(minLabelClearance + titleFontSize + 28, ctx.gridMarginLeft ?? 0, ctx.barGridLeft ?? 0)` so `titleGap` is clamped with `Math.max(minRequiredGap, Math.min(titleGap, effectiveLeft - titleFontSize - 4))`.
+     - In `categoricalBarGenerators.ts`, ensured `calculatedGridLeft` always respects `Math.max(requiredYTitleClearance, barGridLeft ?? ctx.gridMarginLeft ?? 200)`, guaranteeing the chart never clips or collides with labels.
+  3. **Auto-Resolution of Problem 3**:
+     - With `barGridLeft` cleanly restored to 200px and protected by anti-collision floors, category labels have ample horizontal space for multi-line academic wraps without single-letter word splitting.
+- **Files Modified**: `slr-ide/src/components/features/modals/visualizer/components/subcomponents/HorizontalBarScatterConfigPanel.tsx`, `slr-ide/src/components/features/modals/visualizer/generators/axisConfigHelper.ts`, `slr-ide/src/components/features/modals/visualizer/generators/categoricalBarGenerators.ts`, `slr-ide/src/components/features/modals/visualizer/hooks/useVisualizerConfig.ts`, `slr-ide/src/components/features/modals/visualizer/constants/defaultConfigs.ts`, mirrored to `slr-viewer/`.
+- **Verification**: Ran `node scripts/mirror-to-viewer.mjs`; verified `npx tsc --noEmit` in `slr-ide` (0 errors); verified `npm run typecheck` in `slr-viewer` (0 errors); verified `npm run build` in `slr-viewer` (Vite build successful); verified `npm run build` in `slr-ide` (64/64 Next.js routes compiled cleanly with exit code 0).
+
+## #564 - Visualizer Studio: Decoupled Publication Clearance & True Title Movement on Y-Axis Title Gap (2026-09-12)
+- **Goal**: Fix the Y-axis title gap control in the Scientific Visualization Studio (specifically observed in Horizontal Bar & Scatter Combo and other horizontal charts) where increasing the Gap slider moved the entire chart (grid and bars) across the canvas instead of moving the Y-axis title/label.
+- **Root Cause**:
+  - In `categoricalBarGenerators.ts` (`generateHorizontalBarScatterOption`) and `axisConfigHelper.ts` (`resolveUniversalGrid`), `requiredYTitleClearance` was computed as `effectiveYTitleGap + titleFontSize + 16` where `effectiveYTitleGap = ctx.axisTitleGapY`.
+  - Because `grid.left` was clamped to `Math.max(requiredYTitleClearance, ...)`, increasing `axisTitleGapY` pushed `grid.left` to the right by the exact same amount that `yAxis.nameGap` increased.
+  - Since the screen coordinate of the title is $X_{\text{title}} = \text{grid.left} - \text{nameGap}$, the title remained mathematically locked at $X = 34\text{px}$ while the entire chart shifted across the canvas.
+- **Architectural Implementation**:
+  1. **Decoupled Universal Grid Clearance (`axisConfigHelper.ts`, `categoricalBarGenerators.ts`)**:
+     - Redefined `requiredYTitleClearance` for horizontal charts to depend purely on base category label clearance (`effectiveLabelWidth + effectiveLabelMargin`) plus title typography space and padding: `baseCategoryClearance + titleFontSize + 28`.
+     - Removed `effectiveYTitleGap` dependency from `requiredYTitleClearance` in both auto-margins and manual-margins calculation, locking `grid.left` in place so the chart grid never shifts when the user adjusts the title gap.
+  2. **Bounded Anti-Collision Title Gap Positioning (`axisConfigHelper.ts`)**:
+     - Updated `buildScientificAxisConfig` for horizontal charts so relative gaps (e.g. 5px–50px) are offset from category labels (`minLabelClearance = labelWidth + labelMargin`).
+     - Added clamping against available canvas clearance (`effectiveLeft - titleFontSize - 6`), preventing the Y-axis title from ever being pushed off-canvas into negative coordinates even when the slider is dragged to maximum.
+     - As the user adjusts the slider, the Y-axis title moves smoothly across the space while the chart grid remains completely stationary.
+- **Files Modified**: `slr-ide/src/components/features/modals/visualizer/generators/axisConfigHelper.ts`, `slr-ide/src/components/features/modals/visualizer/generators/categoricalBarGenerators.ts`, `slr-viewer/src/components/final-cohort/visualizer/generators/axisConfigHelper.ts`, `slr-viewer/src/components/final-cohort/visualizer/generators/categoricalBarGenerators.ts`.
+- **Verification**: Executed `node scripts/mirror-to-viewer.mjs`; verified `npx tsc --noEmit` in `slr-ide` (0 errors); verified `npm run typecheck` in `slr-viewer` (0 errors); verified `npm run build` in `slr-viewer` (Vite build passed); verified `npm run build` in `slr-ide` (64/64 Next.js routes compiled cleanly with code 0).
+
+## #563 - Complete 19-Chart Customization Audit, Parameter Wiring & Publication Precision (2026-09-12)
+- **Goal**: Execute an exhaustive cross-check across all 19 chart types in the Scientific Visualization Studio (`slr-ide` and `slr-viewer`), eliminate any remaining inert or missing customization options, and wire all UI controls directly to ECharts option generators.
+- **Audited & Implemented Features**:
+  1. **Pie / Donut Slice Sorting & Slice Geometry (`pieSort`, `pieStartAngle`, `pieMinAngle`)**:
+     - Added `pieSort` ('desc', 'asc', 'none') dropdown to `PieDonutConfigPanel` allowing users to sort slices deterministically by value or preserve original category order.
+     - Added `pieStartAngle` (0°–360°) and `pieMinAngle` (0°–20°) sliders, preventing small proportion slices from collapsing or overlapping labels.
+     - Wired parameters into `generatePieDonutOption` series configuration.
+  2. **Continuous Scatter Data Labels & Markers (`scatter`)**:
+     - Wired Universal Data Label controls (`showDataLabels`, `universalLabelPosition`, `universalLabelFontSize`, `universalLabelColor`, `labelFormat`) directly into `generateScatterOption`, allowing points to display title and coordinates.
+  3. **Categorical Matrix & 3D Bubble Styling (`bubble`)**:
+     - Mode B (Numerical 3D): Wired bubble border styling (`bubbleBorderColor`, `bubbleBorderWidth`) and data labels (`bubbleShowLabels`, `labelFormat`, `bubbleLabelColor`).
+     - Mode A (Categorical Matrix): Synchronized `labelConfig.show` with studio Universal Data Labels toggle (`ctx.showDataLabels !== false`).
+  4. **Boxplot Distribution Colors (`boxplotFillColor`, `boxplotBorderColor`)**:
+     - Added color pickers to `BoxplotConfigPanel` for custom box fill and border colors.
+     - Wired `boxplotFillColor` and `boxplotBorderColor` to boxplot series `itemStyle` in `generateBoxplotOption`.
+  5. **Network Graph Interactive Draggability & Node Scale (`graphNodeSize`, `graphDraggable`)**:
+     - Added Base Node Size slider (`graphNodeSize`: 8px–50px) and Draggable Vertices toggle (`graphDraggable`) to `GraphConfigPanel`.
+     - Wired `draggable: ctx.graphDraggable !== false` and dynamic `symbolSize` to `generateGraphOption` force-directed graph series.
+  6. **Gauge Metric Units & Scale Intervals (`gaugeUnit`, `gaugeSplitNumber`)**:
+     - Added Metric Unit Suffix selector (`gaugeUnit`: Auto, %, cit, pts, papers, none) and Scale Split Intervals slider (`gaugeSplitNumber`: 2–10) to `GaugeConfigPanel`.
+     - Replaced hardcoded `{value}%` detail formatter with dynamic suffix formatting (`avg_citation` and `avg_qa` default to raw units or custom suffixes, while ratios default to `%`).
+  7. **Calendar Publication Date Extraction & Scientific Color Palettes (`calendarColorPreset`)**:
+     - Overhauled date extraction in `generateCalendarOption` to prioritize `Publication_Date`, `publication_date`, `Date`, and 4-digit `Year` before ingestion timestamps (`created_at`, `imported_at`).
+     - Added Heat Color Theme selector (`calendarColorPreset`) supporting standard scientific colormaps: Academic Blue/Slate, Viridis Scientific, Plasma High-Contrast, Thermal Heatmap, and Cool-Warm Divergent.
+- **Files Modified**:
+  - `slr-ide/src/components/features/modals/visualizer/types.ts`
+  - `slr-ide/src/components/features/modals/visualizer/constants/defaultConfigs.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/types.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/index.ts`
+  - `slr-ide/src/components/features/modals/visualizer/hooks/useVisualizerConfig.ts`
+  - `slr-ide/src/components/features/modals/visualizer/context/VisualizerProvider.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/ChartConfigPanels.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/generators/proportionsGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/correlationGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/kpiNetworkGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/matrixGenerators.ts`
+  - `slr-ide/improvements-log.md`
+  - `slr-viewer/improvements-log.md`
+- **Verification**:
+  - `slr-ide`: `npx tsc --noEmit` passed with 0 errors.
+  - `slr-viewer`: `npm run typecheck` passed with 0 errors.
+  - `slr-viewer`: `npm run build` compiled production bundle in 2.54s with 0 errors.
+  - `slr-ide`: `npm run build` compiled all 64 static/dynamic routes in Turbopack production build with 0 errors.
+  - `node scripts/mirror-to-viewer.mjs` synchronized all updated visualizer files to `slr-viewer`.
+
+## #562 - Fix Vertical Bar Category Legend, Boxplot Tooltip Indexing, Clustered Error Bars, and Line Marker Controls (2026-09-12)
+- **Goal**: Address edge-case rendering failures and UI control gaps identified across the Scientific Visualization Studio chart suite.
+- **Audited & Resolved Issues**:
+  1. **Vertical Bar Category Legend (`generateVerticalBarOption`)**: Single-series Cartesian bar charts in ECharts omit category items from `legend.data` unless paired with a dummy transparent series. Added zero-radius dummy pie series (matching horizontal bar pattern) to ensure category swatches render in legend. Preserved solid hex `color` on `itemData.color` rather than passing `{ image: ... }` pattern fills to legend swatches when academic monochrome texture hatching is enabled.
+  2. **Vertical Bar Grid Step Interval Control (`VerticalBarConfigPanel`)**: Fixed Section 3 where `barGap` was duplicated, rendering an orphaned slider instead of `barValueInterval` (Grid Step Interval). Replaced the redundant slider with uniform scientific grid step input (`barValueInterval`).
+  3. **Boxplot 5-Number Summary Tooltip Indexing Bug (`generateBoxplotOption`)**: Corrected 1-off indexing bug in boxplot tooltip formatter where `params.data` (5-element array: `[min, q1, median, q3, max]`) was incorrectly accessed from index 1 (`params.data[1]` through `params.data[5]`), causing Min to show Q1, Q1 to show Median, Median to show Q3, Q3 to show Max, and Max to display `undefined`. Extracted `[bMin, bQ1, bMed, bQ3, bMax]` cleanly.
+  4. **Clustered Bar Error Bars Rendering (`generateClusteredBarOption`)**: Implemented custom series I-beam error bar rendering for clustered bar charts across both horizontal and vertical layouts. Resolved exact lateral cluster offsets (`(sIdx - (seriesCount - 1) / 2) * step`) so variance error indicators cleanly align over each individual series bar in the cluster.
+  5. **Trend Line Marker Symbol Selector (`LineConfigPanel`)**: Added Marker Symbol selector (Filled Circle, Hollow Circle, Square, Triangle, Diamond, None) to `cohort_trend` mode, ensuring full UI control without having to switch to simulation mode.
+  6. **Calendar Legend Visibility in Universal Panel (`UniversalFineTunePanel`)**: Enabled Legend & Series Keys toolbox for `calendar` chart type so users can configure visualMap scale bar orientation, visibility, and placement.
+- **Files Modified**:
+  - `slr-ide/src/components/features/modals/visualizer/generators/categoricalBarGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/clusteredBarGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/correlationGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/ChartConfigPanels.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/UniversalFineTunePanel.tsx`
+  - `slr-ide/improvements-log.md`
+  - `slr-viewer/improvements-log.md`
+- **Verification**:
+  - `slr-ide`: `npx tsc --noEmit` passed with 0 errors.
+  - `slr-viewer`: `npm run typecheck` passed with 0 errors.
+  - `slr-viewer`: `npm run build` compiled production bundle with 0 errors.
+  - `slr-ide`: `npm run build` completed static page generation (64/64) with 0 errors.
+  - `node scripts/mirror-to-viewer.mjs` synchronized all updated visualizer files to `slr-viewer`.
+
+## #561 - Full Audit and Wiring of All 19 Chart Customizations in Scientific Visualization Studio (2026-09-12)
+- **Goal**: Cross-check every chart customization UI across all 19 supported charts in the Scientific Visualization Studio, eliminating broken/inert controls, missing parameter bindings, and ensuring 100% operational status.
+- **Audited & Resolved Issues**:
+  1. **Funnel Sorting & Label Placement (`funnelSort`, `funnelLabelPosition`)**: Added missing `funnelSort` and `funnelLabelPosition` definitions across `SlotConfig` in `types.ts`, `DEFAULT_SLOT_CONFIG` in `defaultConfigs.ts`, getters/setters in `useVisualizerConfig.ts`, parameter wiring in `VisualizerProvider.tsx`, `ChartGeneratorContext` in `generators/types.ts`, and `BuildChartOptionParams` in `generators/index.ts`. Removed `as any` typing in `FunnelConfigPanel.tsx`, bound `funnelLabelPosition`, added `funnelSort` UI control, and updated `generateFunnelOption` to sort dataset and apply `sortMode`.
+  2. **Vertical & Horizontal Bar Chart Error Bars & Texture Hatching (`bar_vertical`, `bar_horizontal`)**: Added Academic Texture Hatching (`enableHatchPatterns`) and Scientific Error Bars (`enableErrorBars`, `errorBarType`) controls to `VerticalBarConfigPanel` and `HorizontalBarConfigPanel`. Implemented `barSorting` ('desc', 'asc', 'none'), `barWidth: ctx.barThickness`, `barCategoryGap: ${ctx.barGap}%`, `borderRadius: [ctx.barBorderRadius, ...]`, target benchmark line (`markLine`), monochrome hatch patterns (`getSeriesPatternStyle`), and custom I-beam error bar series (`computeGroupStatistics`, `getErrorBounds`) in `generateVerticalBarOption`. Fixed sorting order bug in `generateHorizontalBarOption` (`desc` -> `valB - valA` and `asc` -> `valA - valB` due to inverted Y-axis).
+  3. **Clustered Bar Chart Hatch Patterns (`clustered_bar`)**: Fixed series `itemStyle` in `generateClusteredBarOption` to preserve and apply computed monochrome texture hatch pattern styles (`...patternStyle`) and `borderRadius`.
+  4. **Continuous & Categorical Scatter Customizations (`scatter`)**: Extended `ScatterConfigPanel` and `generateScatterOption` to wire Point Symbol (`scatterSymbol`: circle, diamond, rect, triangle, roundRect, pin), Point Color (`scatterColor`), Border Color (`scatterBorderColor`), and Border Width (`scatterBorderWidth`).
+  5. **Horizontal Boxplot Jitter Scatter Coordinates (`boxplot`)**: Fixed coordinate inverted coordinate bug in `generateBoxplotOption` when `boxplotOrientation === 'horizontal'` so that points correctly map `[val, cIdx + jitter]` to Cartesian axes and tooltip inspects value at `params.data[0]`.
+  6. **Radar / Spider Chart Data Labels (`radar`)**: Updated `generateRadarOption` across prevalence, tag share, multi-variable, and QA breakdown series to honor `ctx.showDataLabels === true || ctx.radarShowDataLabels === true`.
+  7. **Trend Line Marker Symbols (`line`)**: Fixed cohort trend mode in `generateLineOption` to cleanly bind `symbol: ctx.lineMarkerSymbol || 'circle'`.
+  8. **Universal Effect Controls & Canvas Margin Scope (`UniversalFineTunePanel`)**: Updated `hasCartesianAxes` to include `horizontal_bar_scatter`, expanded `hasDataLabels` to include `horizontal_bar_scatter`, `radar`, and `graph`, and enabled Legend and Canvas Layout & Margins toolboxes for `horizontal_bar_scatter`.
+- **Files Modified**:
+  - `slr-ide/src/components/features/modals/visualizer/types.ts`
+  - `slr-ide/src/components/features/modals/visualizer/constants/defaultConfigs.ts`
+  - `slr-ide/src/components/features/modals/visualizer/hooks/useVisualizerConfig.ts`
+  - `slr-ide/src/components/features/modals/visualizer/context/VisualizerProvider.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/generators/types.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/index.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/categoricalBarGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/clusteredBarGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/correlationGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/kpiNetworkGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/generators/trendLineGenerators.ts`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/ChartConfigPanels.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/HorizontalBarConfigPanel.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/UniversalFineTunePanel.tsx`
+  - `slr-ide/improvements-log.md`
+  - `slr-viewer/improvements-log.md`
+- **Verification**:
+  - `slr-ide`: `npx tsc --noEmit` passed with 0 errors.
+  - `slr-viewer`: `npm run typecheck` passed with 0 errors.
+  - `slr-viewer`: `npm run build` compiled production assets cleanly with 0 errors.
+  - `slr-ide`: `npm run build` completed static page generation and code optimization with 0 errors.
+  - `node scripts/mirror-to-viewer.mjs` synchronized all updated visualizer components to `slr-viewer`.
+
+## #560 - Fix Infinite Backend Call Loop on Opening Chart Library Modal (2026-09-12)
+- **Goal**: Resolve infinite waterfall of backend HTTP calls (`GET /api/charts?projectId=...`) when opening the Project Chart Library modal in the Scientific Visualization Studio.
+- **Root Cause**:
+  1. In `ChartLibraryModal.tsx`, `viewerSavedCharts` defaulted to `[]` inline in the function parameters. In React, default parameter array literals allocate a new object reference on every render when `viewerSavedCharts` is omitted or `undefined`.
+  2. `fetchCharts` declared `[isOpen, isViewerMode, projectId, viewerSavedCharts]` in its `useCallback` dependency array. Because `viewerSavedCharts` had a new reference on every render, `fetchCharts` was recreated continuously.
+  3. `useEffect([isOpen, fetchCharts])` ran whenever `fetchCharts` was recreated, invoking `fetchCharts()` which called `setIsLoading(true)` and `setCharts()`, triggering child re-renders, generating a new `viewerSavedCharts` array literal, and restarting the cycle indefinitely.
+- **Architectural Implementation & Enhancements**:
+  1. **Static Singleton Default Prop**: Replaced inline `[]` with module-scoped constant `EMPTY_SAVED_CHARTS: SavedChart[] = []`.
+  2. **Mutable Ref Decoupling (Rule 3.3)**: Wrapped `viewerSavedCharts` in `viewerSavedChartsRef = useRef(viewerSavedCharts)` to eliminate reference instability from `useCallback` dependencies.
+  3. **Concurrency / In-Flight Fetch Guard**: Added `isFetchingRef = useRef(false)` to prevent re-entrant or overlapping network requests.
+  4. **Stable Callback Dependencies**: Refactored `fetchCharts` dependencies to purely primitive values `[isOpen, isViewerMode, projectId]`, ensuring `fetchCharts` identity remains completely stable across loading and state transitions.
+  5. **Mutable Ref for Agnostic Broadcast Synchronization**: Implemented `fetchChartsRef = useRef(fetchCharts)` for `subscribeSyncChannel('SYNC_CHARTS')` to prevent stale closure bugs while keeping the subscription hook mounted once.
+  6. **Callsite Memoization in VisualizerHeader & ExportPanel**: Stabilized `onLoadPreset={presets.loadPresetPayload}` directly instead of creating inline arrow functions on every render.
+- **Files Modified**:
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/ChartLibraryModal.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/components/VisualizerHeader.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/ExportPanel.tsx`
+  - `slr-viewer/src/components/final-cohort/visualizer/components/subcomponents/ChartLibraryModal.tsx`
+  - `slr-viewer/src/components/final-cohort/visualizer/components/VisualizerHeader.tsx`
+  - `slr-viewer/src/components/final-cohort/visualizer/components/subcomponents/ExportPanel.tsx`
+  - `slr-ide/improvements-log.md`
+  - `slr-viewer/improvements-log.md`
+- **Verification**:
+  - `slr-viewer`: `npm run typecheck` passed with 0 errors.
+  - `slr-viewer`: `npm run build` compiled production assets cleanly with 0 errors.
+  - `slr-ide`: `npx tsc --noEmit` passed with 0 errors.
+  - `node scripts/mirror-to-viewer.mjs` synchronized all shared visualizer components.
+
+## #559 - Deep Code Analysis & Hidden Bug Hunt Verification for Scientific Visualization Studio & Inspection Subsystems (2026-09-12)
+- **Goal**: Perform comprehensive architectural and runtime code audit across `slr-ide` and `slr-viewer` to hunt down edge cases, unhandled nulls, data loss/resurrection bugs, schema desyncs, and missing implementation details across the Scientific Visualization Studio, Fullscreen Paper Inspection Modal, Logic Trace Normalizer, and SLR-Viewer export pipeline.
+- **Architectural Bug Fixes & Hardening**:
+  1. **Logic Trace Normalizer (`trace-normalizer.ts`)**:
+     - Fixed `[object Object]` bug when traces are JSON-serialized objects: implemented `extractTextValue(val)` extracting text fields (`reasoning`, `justification`, `mapping`, `rationale`, `explanation`, `locate`, `evidence`, `quote`, `exact_quote`, `text`).
+     - Added unwrapping for nested `locateMapping.extraction_mapping` and `locateMapping.appraisal_reasoning`.
+     - Upgraded `extractEvidenceQuote` to search candidate keys inside `locateMapping` when `valObj` is a plain string.
+  2. **Dynamic PRISMA Calculation in SLR-Viewer Export (`/api/export/slr-viewer/route.ts`)**:
+     - Replaced hardcoded `stage2_excluded: 774` with dynamic calculation: `Object.values(dbReportsExcludedStage2).reduce((sum, item) => sum + item.total, 0)`.
+  3. **Fullscreen Paper Inspection Modal (`CohortPaperDetailsModal.tsx`)**:
+     - Unwrapped nested `logic_trace?.appraisal_reasoning` and `logic_trace?.extraction_mapping` in QA and Extracted Data `useMemo` hooks.
+     - Guarded `localPdfPath` against `'null'`, `'undefined'`, or empty strings.
+     - Fixed left toolbar label in IDE mode when PDF is absent to display `"Paper Documentation & Sourced Records"`.
+     - Added Cloud Full-Text Literature action banner in IDE mode when local PDF has not been fetched to disk yet (`!hasLocalPdf && cloudPdfUrl`).
+     - Sourced Local PDF Status badge with fallback: `paper.Local_PDF_Status || paper.local_pdf_status || 'UNKNOWN'`.
+     - Fixed verbatim literature evidence quote lookup: `extractEvidenceQuote(key, rawVal, tracesMap) || extractEvidenceQuote(key, tracesMap[key]) || (typeof tracesMap[key] === 'string' ? tracesMap[key] : '')`.
+     - Guarded QA score parsing with `numScore = typeof rawScore === 'number' ? rawScore : parseFloat(String(rawScore))` and supported string trace rationales.
+  4. **Offline Chart Deletion Tombstoning (`ChartLibraryModal.tsx`)**:
+     - Eliminated snapshot chart resurrection in offline viewer mode by persisting deleted chart IDs in `localStorage.getItem('slr_viewer_deleted_charts_' + projectId)`.
+     - Filtered out tombstoned charts in `fetchCharts`, updated tombstone list in `handleDeleteChart`, and cleared tombstone on overwrite.
+  5. **Live Saved Charts Count & Broadcast Synchronization**:
+     - Subscribed to `SYNC_CHARTS` broadcast channel in `VisualizerHeader.tsx` and topbar button in `slr-ide/src/app/page.tsx` with dynamic fetch from `/api/charts?projectId=...`.
+     - Added "Open FAIR Chart Library" action button in `ExportPanel.tsx`.
+  6. **Universal Fine-Tune Panel Reset Mechanics (`UniversalFineTunePanel.tsx`)**:
+     - Expanded "Geometry & Mechanics" toolbox parameter reset to support all 19 chart categories cleanly using exact `SlotConfig` property names (`scatterPointSize`, `scatterPointOpacity`, `scatterSymbolSize`, `bubbleScale`, `bubbleOpacity`, `bubbleMinRadius`, `bubbleMaxRadius`, `bubbleBorderWidth`, `boxplotOrientation`, `boxplotBoxWidth`, `boxplotShowScatter`, `radarShape`, `radarSplitNumber`, `radarLineWidth`, `radarAreaOpacity`, `funnelAlign`, `funnelGap`, `funnelNeckWidth`, `funnelNeckHeight`, `heatmapCellRadius`, `heatmapColorPreset`, `graphRepulsion`, `graphEdgeLength`, `graphGravity`, `gaugeMaxScale`, `gaugePointerWidth`, `gaugeDialWidth`, `calendarCellSize`, etc.).
+  7. **Cohort Table Navigation Bounds & ID Casting (`FinalCohortPanel.tsx`)**:
+     - Fixed paper ID comparison with string casting: `String(p.Paper_ID) === String(selectedPaperId)`.
+     - Protected `handleNavigatePaper` with strict index bounds to prevent wrap-around jumps when boundary buttons are disabled.
+  8. **Vite Offline Dexie IndexedDB Session Update (`slr-viewer`)**:
+     - Implemented `handleViewerSaveChart` and `handleViewerDeleteChart` in `slr-viewer/src/components/final-cohort/FinalCohortPanel.tsx` calling `StorageService.updateSession(activeSession.id, nextRawData)`.
+     - Retained and sanitized `saved_charts: Array.isArray(rawPayload.saved_charts) ? rawPayload.saved_charts : []` in `schemaValidator.ts`.
+- **Files Modified**:
+  - `slr-ide/src/lib/services/trace-normalizer.ts`
+  - `slr-ide/src/app/api/export/slr-viewer/route.ts`
+  - `slr-ide/src/components/features/insight-export/CohortPaperDetailsModal.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/types.ts`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/ChartLibraryModal.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/components/VisualizerHeader.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/ExportPanel.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/UniversalFineTunePanel.tsx`
+  - `slr-ide/src/components/features/insight-export/FinalCohortPanel.tsx`
+  - `slr-ide/src/app/page.tsx`
+  - `slr-ide/files.md`
+  - `slr-ide/improvements-log.md`
+- **Verification**:
+  - `slr-ide`: `npx tsc --noEmit` passed with 0 errors.
+  - `slr-ide`: `npm run build` compiled all 64 routes cleanly with 0 errors.
+  - `slr-viewer`: `npm run typecheck` passed with 0 errors.
+  - `slr-viewer`: `npm run build` compiled production assets cleanly with 0 errors.
+
+## #558 - FAIR Centralized Database Chart Storage, Premiere-Style Collapsible Toolboxes, SLR-Viewer Bundle Sourcing, & Fullscreen Paper Inspection Modal (2026-09-12)
+- **Goal**: Implement 4 major capabilities across `slr-ide` and `slr-viewer`: (1) Replace legacy JSON preset export/import with FAIR-compliant centralized database-saved chart storage and interactive Chart Library; (2) Overhaul the fine-tuning customization panel with chart-by-chart feature optimization and Adobe Premiere Pro-style collapsible toolboxes; (3) Bundle and view project-generated charts seamlessly in offline `slr-viewer` snapshot packages; (4) Replace cell value/logic trace popovers in the final cohort table with a comprehensive fullscreen modal showing local sourced PDF preview (in IDE) or cloud PDF sync (in viewer) alongside deep RQ taxonomy mapping, extraction rules, verbatim quotes, QA appraisal scores, and raw JSON.
+- **Architectural Implementation & Enhancements**:
+  1. **FAIR Database-Saved Chart Persistence (`saved_charts`)**:
+     - Added SQLite `saved_charts` table DDL in `db-init.ts` with `FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE` and indexes (`idx_saved_charts_project`, `idx_saved_charts_type`).
+     - Added cascading deletion of saved charts on project deletion in `/api/projects/[id]/route.ts`.
+     - Built project-scoped `/api/charts/route.ts` REST endpoint supporting `GET` (list project charts), `POST` (create or update charts with payload validation), and `DELETE` (scoped chart deletion).
+     - Created `ChartLibraryModal.tsx`: interactive modal supporting 1-click database save, studio hydration, overwrite, duplicate, delete, and legacy JSON preset file import.
+     - Replaced legacy JSON preset buttons in `VisualizerHeader.tsx` and `ExportPanel.tsx` with the centralized "Chart Library" interface.
+  2. **Chart-by-Chart Feature Optimization & Premiere-Style Collapsible Toolboxes**:
+     - Built `CollapsibleToolbox.tsx` inspired by Adobe Premiere Pro Effect Controls / Lumetri panels with disclosure chevron toggles, themed icons, active summary chips, quick enable switches, and parameter reset triggers.
+     - Overhauled `UniversalFineTunePanel.tsx` into modular toolboxes:
+       - *Academic Palette & Typography*: 36 journal palettes, font family selector, base font size.
+       - *Chart Architecture & Visual Geometry*: dedicated inspectors dynamically filtered chart-by-chart (`categoricalBars`, `sankey`, `sunburst`, `treemap`, `radar`, `bubble`, etc.).
+       - *Scientific Axes & Gridlines*: Cartesian axis titles, tick angles, rotation, number formatters, and grid collision margins (automatically hidden for non-cartesian charts).
+       - *Data Labels & Scientific Annotations*: auto-contrast color modes, position presets, rotation, overflow wrapping, and zero-value toggles.
+       - *Legend & Series Keys*: placement positions (`top`, `bottom-center`, `right`, etc.), formatters, border, and background styling.
+       - *Canvas Margins & Viewport Clearance*: auto-calculation toggles with manual top/bottom/left/right overrides.
+     - Added master "Expand All" and "Collapse All" batch controls for fast studio navigation.
+  3. **Offline Snapshot Bundle Export & SLR-Viewer Parity**:
+     - Updated `/api/export/slr-viewer/route.ts` to query `saved_charts` table and bundle all project-generated charts inside `.slr-viewer` snapshot files under `saved_charts`.
+     - Updated `mirror-to-viewer.mjs` to mirror `CohortPaperDetailsModal.tsx` and all visualizer components.
+     - Updated `slr-viewer/src/components/final-cohort/FinalCohortPanel.tsx` to pass `savedCharts={activeSession?.rawData?.saved_charts || []}` and `isViewerMode={true}` to `VisualizerModal`.
+     - `ChartLibraryModal` in viewer mode runs completely offline without backend calls, rendering bundled project charts with instant studio loading.
+  4. **Comprehensive Fullscreen Paper Inspection Modal**:
+     - Dropped "View and copy cell value" and "View extraction logic trace" popovers from `ClickableCell.tsx` across both `slr-ide` and `slr-viewer`.
+     - Created `CohortPaperDetailsModal.tsx`: split-screen fullscreen modal featuring:
+       - Left Pane (50%): Embedded `/api/pdf/serve?path=...` local PDF iframe (in IDE) or "Open Cloud PDF" synced link (in viewer) + Abstract and bibliographic metadata.
+       - Right Pane (50%): Tabbed inspectors for (1) Extracted RQs with taxonomy resolution, reasoning rules, and verbatim quotes; (2) QA appraisal criteria with scores and justification; (3) Full raw JSON debug payload.
+       - Keyboard navigation (`ArrowLeft`, `ArrowRight`, `Esc`), index counter (`X of N`), and fullscreen toggle.
+     - Integrated inspection triggers into `FinalCohortPanel` table rows (click, double click, dedicated eye button) and header toolbar.
+- **Files Modified/Created**:
+  - `slr-ide/src/lib/db/db-init.ts`
+  - `slr-ide/src/app/api/projects/[id]/route.ts`
+  - `slr-ide/src/app/api/charts/route.ts`
+  - `slr-ide/src/app/api/export/slr-viewer/route.ts`
+  - `slr-ide/src/types/index.ts`
+  - `slr-ide/src/components/features/modals/visualizer/types.ts`
+  - `slr-ide/src/components/features/modals/visualizer/hooks/useVisualizerPresets.ts`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/CollapsibleToolbox.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/ChartLibraryModal.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/UniversalFineTunePanel.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/components/subcomponents/ExportPanel.tsx`
+  - `slr-ide/src/components/features/modals/visualizer/components/VisualizerHeader.tsx`
+  - `slr-ide/src/components/features/insight-export/CohortPaperDetailsModal.tsx`
+  - `slr-ide/src/components/features/insight-export/FinalCohortPanel.tsx`
+  - `slr-viewer/src/components/final-cohort/ClickableCell.tsx`
+  - `slr-viewer/src/components/final-cohort/FinalCohortPanel.tsx`
+  - `scripts/mirror-to-viewer.mjs`
+  - `slr-ide/db/schema.md`
+  - `slr-ide/files.md`
+  - `slr-ide/improvements-log.md`
+- **Verification**:
+  - `slr-ide`: `npx tsc --noEmit` passed with 0 errors.
+  - `slr-ide`: `npm run build` passed with Next.js Turbopack production build (all 64 routes compiled, `/api/charts` active).
+  - `slr-viewer`: `npm run typecheck` passed with 0 errors.
+  - `slr-viewer`: `npm run build` passed with Vite production build (v1.1.28).
+  - `npm run mirror:viewer` passed with 100% synchronicity across services, modals, visualizer studio, and offline fonts.
+
+## #557 - Scientific Visualization Studio Data Source Overhaul & Category Truncation Safeguard (2026-09-11)
+- **Goal**: Fix the Scientific Visualization Studio data source and category truncation issue where visualizing RQ3a (`rq3a_edge_hardware`) yielded only 4 categories instead of all 8 umbrella categories; establish direct database hydration with full offline compatibility for `slr-viewer`; normalize bare keys against stage-dominant literature extractions; relax aggressive category truncations; and add interactive Cohort Scope and Category Truncation UI controls.
+- **Root Cause & Mathematical Invariant**:
+  1. **Premature Category Capping**: `smartOptimizer.ts` and `limitCategoryMap` forced `limitCategories: true` with `maxCategoriesCount = 5`, which sliced the top 4 categories and lumped the remaining 4 into "Other".
+  2. **Bare Key Lookup Defect**: `extractPaperFieldValues` failed to resolve bare keys (e.g. `rq3a_edge_hardware`) that lacked an `ext:` prefix, returning empty arrays ($N=0$).
+  3. **Cohort Scope Restriction**: `FinalCohortPanel` only passed filtered papers (`papers={filteredPapers}`). If any search term or filter was applied in the UI table, the studio was limited to a subset rather than the full 46-paper study cohort.
+  4. **Hidden Category Truncation Controls**: Users had zero UI visibility or toggles to disable category limiting or adjust `maxCategoriesCount` when charts were auto-capped.
+- **Architectural Implementation & Enhancements**:
+  1. **Universal Taxonomy & Field Normalization (`taxonomy-resolver.ts`)**:
+     - Upgraded `extractPaperFieldValues` to resolve bare keys against stage-dominant `extracted_data` with candidate key normalization (`key`, `ext:key`, underscore/space replacements, and case-insensitive matching).
+  2. **Authoritative Direct Database Hydration & SLR-Viewer Parity (`VisualizerProvider.tsx` & `FinalCohortPanel.tsx`)**:
+     - `FinalCohortPanel` in both `slr-ide` and `slr-viewer` passes `allCohortPapers={allPapers}` ($N=46$), giving 0ms latency and 100% offline compatibility in `slr-viewer` (zero network calls).
+     - `VisualizerProvider` implements an autonomous fallback query to `/api/insight/final-cohort?projectId=${projectId}&limit=10000` with multi-tab `SYNC_PAPERS` synchronization.
+     - Defaulted studio scope to `cohortScope: 'full'` with interactive switching between `Full Study Cohort (N=46)` and `Filtered View (N=X)`.
+  3. **Relaxed Category Truncation & Optimization Guards (`smartOptimizer.ts`)**:
+     - Guarded `pie_donut` to only apply category limiting if `uniqueCategoryCount > 15 && limitCategories === undefined` with `maxCategoriesCount = 12` (previously forced at >8 items with max 5).
+     - Guarded bar and scatter charts to only limit at >20 items if undefined.
+  4. **Interactive Category Truncation & Cohort Switcher UI (`StudioDataTab.tsx`, `Step2DataMapping.tsx`, `VisualizerHeader.tsx`)**:
+     - Added visible "Category Truncation & Aggregation" toggle and parameter inputs in `StudioDataTab` and `Step2DataMapping`.
+     - Added segmented Cohort Scope Switcher in `VisualizerHeader`.
+  5. **Stage Dominance & Crash Safeguards**:
+     - Replaced naive manual checks with `getStageDominantExtractedDataStr` and `getStageDominantQualityAssessmentStr` across all 7 chart family generators.
+     - Added fallback guards for `barLabelPosition`, `manualCategoryValues`, and `customSliceColors`.
+- **Files Modified/Created**: `slr-ide/src/lib/services/taxonomy-resolver.ts`, `slr-ide/src/components/features/modals/visualizer/types.ts`, `slr-ide/src/components/features/modals/visualizer/context/VisualizerProvider.tsx`, `slr-ide/src/components/features/modals/visualizer/hooks/useVisualizerWorkspace.ts`, `slr-ide/src/components/features/modals/visualizer/hooks/useVisualizerData.ts`, `slr-ide/src/components/features/modals/visualizer/components/VisualizerHeader.tsx`, `slr-ide/src/components/features/modals/visualizer/components/Step2DataMapping.tsx`, `slr-ide/src/components/features/modals/visualizer/components/subcomponents/StudioDataTab.tsx`, `slr-ide/src/components/features/insight-export/FinalCohortPanel.tsx`, `slr-viewer/src/components/final-cohort/FinalCohortPanel.tsx`, `scripts/mirror-to-viewer.mjs`, `slr-ide/files.md`, `slr-ide/improvements-log.md`.
+- **Verification**: `npx tsx scratch/test-rq3a.ts` (all 8 categories verified across horizontal bar, pie/donut, sunburst, treemap, and sankey), `npx tsc --noEmit` in `slr-ide` (0 errors), `npm run build` in `slr-viewer` (0 errors, v1.1.27).
+
+## #556 - Surgical Calibration of RQ3a Hardware Taxonomy & Cohort Classification (2026-09-11)
+- **Goal**: Resolve data misclassification in RQ3a Edge Hardware taxonomy for active project `proj-1786812367683` (*"Crs-dom SLR Edge-Native DT"*), rename the umbrella category `"Microcontrollers (MCUs) & Embedded Nodes"` to `"Microcontrollers (MCUs)"`, reallocate three pure application-processor papers lacking MCUs, and preserve multi-node studies, establishing a strict 14-paper MCU cohort ($30.4\%$).
+- **Root Cause & Mathematical Invariant**:
+  1. Three papers within the initial 17-paper umbrella cohort contained zero microcontrollers in their raw hardware records:
+     - `BinChen_2025` (`chen_cross-scale_2025`): Used an ARM Cortex-A78 application processor and an Industrial PC. Reallocated to **Industrial PCs (IPCs), PLCs & CNC Controllers**.
+     - `Qi_2026` (`qi_novel_2026`): Employs NXP i.MX6ULL and ARM Cortex-A73 application processors running Linux without an MCU node. Reallocated to **Industrial PCs (IPCs), PLCs & CNC Controllers** with raw hardware normalized to `["ARM Cortex-A73", "I.MX6ULL"]`.
+     - `C_2022` (`puerto-santana_asymmetric_2022`): Features a Zynq UltraScale+ MPSoC combining ARM Cortex-A53 application cores with programmable logic fabric, lacking a dedicated MCU. Reallocated to **Field-Programmable Gate Arrays (FPGAs) & Custom SoCs** with raw hardware normalized to `["ZU3 Zynq UltraScale+ SoC (Cortex-A53 + PL)"]`.
+  2. Multi-node studies (`HusseinKrayem_2025`, `AbdullahAlourani_2025`, `Thirupathi_2025`) explicitly contain bare-metal microcontrollers (ESP32, Arduino, STM32) and were strictly preserved in `"Microcontrollers (MCUs)"`.
+  3. Excluding the three pure application-processor studies reduces the MCU cohort from 17 to exactly 14 studies ($14 / 46 = 30.43\% \approx 30.4\%$).
+- **Architectural Implementation & Enhancements**:
+  1. **Pre-Flight Safety Backup**: Generated verified timestamped snapshot `slr-ide/db/slr.db.bak_rq3a_surgery_*` prior to any mutation.
+  2. **Multi-Project Isolation (AGENTS.md §3.8)**: Scoped all reads and updates strictly to active project `proj-1786812367683`.
+  3. **Atomic SQLite Transaction**: Executed paper record updates in `papers` and taxonomy calibrations in `umbrellanizer_results` inside an atomic transaction.
+  4. **Automated Assertion Suite**: Verified 0 tokens with the legacy category name, exactly 16 legitimate MCU tokens mapped to `"Microcontrollers (MCUs)"`, complete exclusion of `BinChen_2025`, `Qi_2026`, and `C_2022` from MCUs, and strict preservation of multi-node studies.
+- **Files Modified/Created**: `scripts/surgical_migrate_rq3a_mcu.py`, `slr-ide/files.md`, `slr-ide/improvements-log.md`.
+- **Verification**: `python scripts/surgical_migrate_rq3a_mcu.py` (all 6 invariant assertions passed), `npm run typecheck` (0 errors).
+
 ## #555 - Codebase Cleanup, Tree Shaking & Temporary File Purge for GitHub Release (2026-09-09)
 - **Goal**: Clean up the codebase by removing ad-hoc scratch scripts, deleting obsolete test harnesses, purging dead code and unused imports, and restoring clean configuration files in preparation for a production-ready GitHub release.
 - **Architectural Implementation & Enhancements**:
@@ -5233,6 +5765,8 @@
 | #253 | 2026-08-24 | Bug Fix / Hardening | Deep Code Audit & Multi-Label Cross-Branch Leakage Resolution: (1) Fixed `realDataBreakdown` in `useVisualizerData.ts` by delegating child level scoping directly to `filterValuesForParent()`, eliminating phantom cross-category child rows in the data breakdown table, (2) Hardened `filterValuesForParent()` Case 2 in `hierarchicalGenerators.ts` with `belongsToAnotherPrefix` check to prevent multi-domain literature tokens from leaking under unrelated macro categories, (3) Updated `generateHeatmapOption` in `matrixGenerators.ts` to use `getMappedFieldValue()` with custom category and group layer mappings. Verified clean TypeScript build (`npx tsc --noEmit`) and all test suites passed. | Deep Code Audit & Cross-Branch Scoping Hardening |
 | #254 | 2026-08-24 | Bug Fix / Hardening | Full Pipeline Deep Iterative Code Audit & Chart Generator Harmonization: (1) Upgraded `extractPaperFieldValues()` in `taxonomy-resolver.ts` to isolate subcategories across 3-tier colon delimiters cleanly without string bleed, (2) Hardened `stripParentPrefix()` to strip compound prefix paths up to any matched colon segment, (3) Fixed `generateStackedBarOption` in `categoricalBarGenerators.ts` to use `getMappedFieldValue()` and compute normalized metric values for tail 'Other' slices, (4) Fixed `generateLineOption` in `trendLineGenerators.ts` to use `getMappedFieldValue()` with custom mapping support, (5) Fixed secondaryField extraction in `clusteredBarGenerators.ts` for tail 'Other' series. Verified clean TypeScript build (`npx tsc --noEmit`). | Full Pipeline Deep Iterative Audit & Generator Harmonization |
 | #255 | 2026-08-24 | Bug Fix / Hardening | KPI/Network & Preset Serialization Audit: (1) Upgraded `generateRadarOption` and `generateGraphOption` in `kpiNetworkGenerators.ts` to use `getMappedFieldValue()` with complete `customCategoryMap` and `levelCustomGroupLinks` support, (2) Fixed preset deserialization in `useVisualizerPresets.ts` to preserve `tailLabelStyle` across legacy migrations, (3) Verified `computeGroupStatistics()` in `statisticalUtils.ts` for single-paper group sample variance ($N-1$) invariance. Verified clean TypeScript build (`npx tsc --noEmit`) and all tests passed. | KPI/Network & Preset Serialization Audit |
+| #256 | 2026-09-12 | Bug Fix / UI | Fixed Quality Appraisal (QA) score calculation and display in Final Cohort paper inspection modal (`CohortPaperDetailsModal.tsx`): (1) Implemented dynamic criterion score parser dynamically summing individual criterion evaluations (`calculatedSum += numVal`), supporting decimal strings, booleans, and nested objects to prevent modal header badge and QA tab from persistently showing `0 / 8.0`, (2) Wired appraisal justification and verbatim literature evidence quotes (`exact_quote`) display under each criterion card, (3) Added `p.Local_PDF_Path` to `/api/insight/final-cohort/route.ts` SELECT query for local PDF inspection. Synchronized with `slr-viewer`. | Final Cohort Paper Details QA Score Calculation & Verbatim Quote Display |
+| #257 | 2026-09-12 | Feature / UI | Implemented Umbrellanized Value and Taxonomy Induction Justification in Final Cohort paper inspection modal (`CohortPaperDetailsModal.tsx`) and table (`FinalCohortPanel.tsx`): (1) Wired `getUmbrellanizerJustification` to dynamically resolve taxonomy cluster justifications from `umbrellanizerMap` / `umbrellanizer_results`, (2) Rendered dual-card layout separating Umbrellanized Value (Canonical Taxonomy) from Raw Extracted Literal Token(s), (3) Added dedicated purple/indigo Umbrellanizer Taxonomy Justification card with 1-click copy and per-token arrow mapping (`rawToken → mappedCategory: "justification"`), (4) Enhanced `ClickableCell` to render multi-line native tooltips on cell hover in Final Cohort table displaying umbrellanized values, raw tokens, and taxonomy justifications. Synchronized with `slr-viewer`. | Umbrellanized Value & Taxonomy Induction Justification in Final Cohort |
 
 
 

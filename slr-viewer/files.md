@@ -66,9 +66,10 @@ This document serves as a comprehensive index of every file within the `slr-view
 | `src/components/Dashboard.tsx` | Workspace Board | Multi-session management dashboard with search, sort, file metadata inspection, and session deletion. |
 | `src/components/ImportWorkflow.tsx` | File Ingestion | Drag-and-drop file ingestion area supporting both `.slr-viewer` (Gzip binary) and `.json` uncompressed snapshot bundles. |
 | `src/components/common/FullscreenErrorModal.tsx` | Error Handling | Interceptor modal displaying actionable error messages when snapshot validation fails or file corruptions occur. |
-| `src/components/final-cohort/FinalCohortPanel.tsx` | Data Grid / Table | Comprehensive final cohort data grid with column filters, search, inline trace popovers, and launch actions for Visualizer and LLM Context Builder. |
-| `src/components/final-cohort/ClickableCell.tsx` | Grid Cell Renderer | Interactive table cell renderer displaying umbrellanized and raw original extracted values with popover trace justification and quotes. |
-| `src/components/final-cohort/VisualizerModal.tsx` | Data Visualization | Full-featured Visualizer Studio modal housing the 18-chart generation studio and publication export tools. |
+| `src/components/final-cohort/FinalCohortPanel.tsx` | Data Grid / Table | Comprehensive final cohort data grid with column filters, search, inline paper inspection launcher, and action buttons for Visualizer Studio (with saved charts badge) and LLM Context Builder. |
+| `src/components/final-cohort/ClickableCell.tsx` | Grid Cell Renderer | Clean condensed table cell renderer displaying truncated values with instant click-to-inspect trigger. |
+| `src/components/final-cohort/CohortPaperDetailsModal.tsx` | Modal Component | Comprehensive fullscreen paper inspection modal with prominent "Open Cloud PDF" button, full Abstract card, Bibliographic metadata, RQ extraction mappings, verbatim quotes, QA appraisal breakdown, and raw JSON. |
+| `src/components/final-cohort/VisualizerModal.tsx` | Data Visualization | Full-featured Visualizer Studio modal housing the 18-chart generation studio, FAIR Project Chart Library, and publication export tools. |
 | `src/components/final-cohort/LlmContextBuilderModal.tsx` | LLM Context Builder | Synthesis modal extracting structured Markdown context from final cohort papers across customizable research dimensions. |
 | `src/components/scientific-rigor/ScientificRigorPanel.tsx` | Quality Assessment | Top-level scientific rigor dashboard featuring PRISMA 2020 validation status, 1-click Rigor JSON export, and LLM Context Extraction. |
 | `src/components/scientific-rigor/PrismaFlowDiagram.tsx` | Diagram Presentation | PRISMA 2020 Canvas & SVG flow diagram with vector SVG/PDF export actions, zoom/pan controls, and customizable themes. |
@@ -99,9 +100,13 @@ This document serves as a comprehensive index of every file within the `slr-view
 | `visualizer/components/VisualizerHeader.tsx` | Header Controls | Studio top bar with chart title, preset selector, and action buttons. |
 | `visualizer/components/Step1ChartSelector.tsx` | Step 1 Selector | Interactive gallery for selecting among 18 ECharts visualization categories. |
 | `visualizer/components/Step2DataMapping.tsx` | Step 2 Mapping | Dynamic data mapping interface for dimensions, grouping, series, and aggregation functions. |
-| `visualizer/components/Step3StyleCustomization.tsx` | Step 3 Styling | Deep styling panel for colors, typography, grids, legends, tooltips, and hatch patterns. |
+| `visualizer/components/subcomponents/UniversalFineTunePanel.tsx` | Step 3 Styling / Customization | Streamlined customization hub with Adobe Premiere-style collapsible toolboxes for Academic Palette, Geometry, Axes, Data Labels, Legends, and Margins. |
+| `visualizer/components/subcomponents/CollapsibleToolbox.tsx` | UI Subcomponent | Collapsible toolbox container with disclosure chevrons, themed icons, active summary badges, quick toggle switches, and parameter reset triggers. |
+| `visualizer/components/subcomponents/ChartLibraryModal.tsx` | Modal Component | FAIR-compliant Project Chart Library modal supporting offline snapshot chart viewing, local storage persistence, studio hydration, duplicate, delete, and legacy JSON preset import. |
 | `visualizer/components/Step4PreviewStage.tsx` | Step 4 Preview | Full viewport chart canvas preview with camera controls, split preview, and export controls. |
 | `visualizer/components/subcomponents/` | Modular Studio Panels | Dedicated configuration panels for Clustered Bar, Horizontal Bar, Stacked Bar, Treemap, Sunburst, Radar/Spider, Sankey, Cross-Tab Matrix, and Scientific Axes. |
 | `visualizer/generators/` | Chart Option Engines | Pure ECharts option generation functions for all 18 chart types adhering to strict type safety. |
 | `visualizer/hooks/` | Custom State Hooks | Specialized hooks managing visualizer camera zoom/pan, chart options, data mapping, presets, and styling. |
 | `visualizer/utils/` | Algorithmic Utilities | Color palettes, data extractors, export formatters, hatch pattern engines, Hare-Hamilton quota balancer, and statistical estimators. |
+| `src/lib/sync-utils.ts` | Synchronization | Implements the Agnostic BroadcastChannel pattern (`broadcastSync`, `subscribeSyncChannel`) for cross-tab synchronization and reactivity. |
+

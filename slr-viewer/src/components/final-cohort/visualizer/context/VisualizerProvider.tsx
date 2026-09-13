@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
 import { useVisualizerLayout } from '../hooks/useVisualizerLayout';
 import { useVisualizerConfig } from '../hooks/useVisualizerConfig';
 import { useVisualizerData } from '../hooks/useVisualizerData';
@@ -10,6 +10,7 @@ import { useChartCanvas } from '../hooks/useChartCanvas';
 import { buildChartOption } from '../generators';
 import { VisualizerContext, type VisualizerContextValue } from './VisualizerContext';
 import type { VisualizerModalProps, SlotId } from '../types';
+import { subscribeSyncChannel } from '@/lib/sync-utils';
 
 interface VisualizerProviderProps {
   children: React.ReactNode;
@@ -17,7 +18,80 @@ interface VisualizerProviderProps {
 }
 
 export function VisualizerProvider({ children, props }: VisualizerProviderProps) {
-  const { papers, isOpen, umbrellanizerMap = {} } = props;
+  const {
+    papers: propPapers = [],
+    allCohortPapers: propAllCohortPapers,
+    projectId,
+    autoFetchFromDb = true,
+    initialCohortScope = 'full',
+    isOpen,
+    umbrellanizerMap = {},
+    isFiltered: propIsFiltered = false
+  } = props;
+
+  // Cohort Scope State ('full' by default for authoritative full study cohort N=46)
+  const [cohortScope, setCohortScope] = useState<'full' | 'filtered'>(initialCohortScope);
+  const [dbCohortPapers, setDbCohortPapers] = useState<any[] | null>(null);
+  const [isLoadingDbCohort, setIsLoadingDbCohort] = useState<boolean>(false);
+
+  // Fallback direct DB fetch if allCohortPapers was not provided by the parent
+  const fetchDbCohort = useCallback(async () => {
+    if (!projectId || typeof window === 'undefined') return;
+    try {
+      setIsLoadingDbCohort(true);
+      const res = await fetch(`/api/insight/final-cohort?projectId=${encodeURIComponent(String(projectId))}&limit=10000`);
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json.papers)) {
+          setDbCohortPapers(json.papers);
+        }
+      }
+    } catch (err) {
+      console.warn('[VisualizerProvider] Autonomous DB cohort fetch bypassed/failed (offline SPA or API error):', err);
+    } finally {
+      setIsLoadingDbCohort(false);
+    }
+  }, [projectId]);
+
+  // Trigger DB fetch on modal open if allCohortPapers is absent and autoFetchFromDb is enabled
+  useEffect(() => {
+    if (isOpen && autoFetchFromDb && (!propAllCohortPapers || propAllCohortPapers.length === 0) && projectId) {
+      fetchDbCohort();
+    }
+  }, [isOpen, autoFetchFromDb, propAllCohortPapers, projectId, fetchDbCohort]);
+
+  // Subscribe to Multi-Tab Sync (SYNC_PAPERS) to keep DB cohort updated
+  const fetchDbCohortRef = useRef(fetchDbCohort);
+  fetchDbCohortRef.current = fetchDbCohort;
+
+  useEffect(() => {
+    if (!isOpen || !projectId) return;
+    const unsub = subscribeSyncChannel((type) => {
+      if (type === 'SYNC_PAPERS') {
+        fetchDbCohortRef.current();
+      }
+    });
+    return () => unsub();
+  }, [isOpen, projectId]);
+
+  // Determine effective full cohort papers and active working papers
+  const effectiveFullCohort = useMemo(() => {
+    if (propAllCohortPapers && propAllCohortPapers.length > 0) {
+      return propAllCohortPapers;
+    }
+    if (dbCohortPapers && dbCohortPapers.length > 0) {
+      return dbCohortPapers;
+    }
+    return propPapers;
+  }, [propAllCohortPapers, dbCohortPapers, propPapers]);
+
+  const activePapers = useMemo(() => {
+    return cohortScope === 'full' ? effectiveFullCohort : propPapers;
+  }, [cohortScope, effectiveFullCohort, propPapers]);
+
+  const fullCohortCount = effectiveFullCohort.length;
+  const filteredCohortCount = propPapers.length;
+  const isFiltered = propIsFiltered || (filteredCohortCount < fullCohortCount);
 
   const layout = useVisualizerLayout();
 
@@ -26,7 +100,7 @@ export function VisualizerProvider({ children, props }: VisualizerProviderProps)
   });
 
   const data = useVisualizerData({
-    papers,
+    papers: activePapers,
     activeSlot: layout.activeSlot,
     currentSlotConfig: config.currentSlotConfig,
     updateActiveSlot: config.updateActiveSlot,
@@ -40,7 +114,13 @@ export function VisualizerProvider({ children, props }: VisualizerProviderProps)
     isOpen,
     currentStep: config.currentStep,
     setCurrentStep: config.setCurrentStep,
-    onClose: props.onClose
+    onClose: props.onClose,
+    cohortScope,
+    setCohortScope,
+    fullCohortCount,
+    filteredCohortCount,
+    isFiltered,
+    isLoadingDbCohort
   });
 
   const presets = useVisualizerPresets({
@@ -56,7 +136,7 @@ export function VisualizerProvider({ children, props }: VisualizerProviderProps)
 
     return buildChartOption({
       chartType: slotConfig.chartType,
-      papers,
+      papers: activePapers,
       themePreset: style.themePreset,
       fontFamily: style.fontFamily,
       fontSize: style.fontSize,
@@ -156,6 +236,18 @@ export function VisualizerProvider({ children, props }: VisualizerProviderProps)
       axisTitleLocationY: slotConfig.axisTitleLocationY || 'middle',
       axisTitleGapX: slotConfig.axisTitleGapX ?? 28,
       axisTitleGapY: slotConfig.axisTitleGapY ?? 38,
+      axisTitleRotateX: slotConfig.axisTitleRotateX ?? 0,
+      axisTitleRotateY: slotConfig.axisTitleRotateY ?? 90,
+      axisTitleAlignX: slotConfig.axisTitleAlignX || 'center',
+      axisTitleAlignY: slotConfig.axisTitleAlignY || 'center',
+      axisTitleOffsetX_X: slotConfig.axisTitleOffsetX_X ?? 0,
+      axisTitleOffsetY_X: slotConfig.axisTitleOffsetY_X ?? 0,
+      axisTitleOffsetX_Y: slotConfig.axisTitleOffsetX_Y ?? 0,
+      axisTitleOffsetY_Y: slotConfig.axisTitleOffsetY_Y ?? 0,
+      axisTitlePrefixX: slotConfig.axisTitlePrefixX || '',
+      axisTitleSuffixX: slotConfig.axisTitleSuffixX || '',
+      axisTitlePrefixY: slotConfig.axisTitlePrefixY || '',
+      axisTitleSuffixY: slotConfig.axisTitleSuffixY || '',
       showAxisLabelX: slotConfig.showAxisLabelX ?? true,
       showAxisLabelY: slotConfig.showAxisLabelY ?? true,
       axisLabelFontSizeX: slotConfig.axisLabelFontSizeX ?? 11,
@@ -320,6 +412,9 @@ export function VisualizerProvider({ children, props }: VisualizerProviderProps)
       roseType: slotConfig.roseType,
       piePadAngle: slotConfig.piePadAngle,
       pieCornerRadius: slotConfig.pieCornerRadius,
+      pieSort: slotConfig.pieSort,
+      pieStartAngle: slotConfig.pieStartAngle,
+      pieMinAngle: slotConfig.pieMinAngle,
       treemapAlgorithm: slotConfig.treemapAlgorithm,
       treemapSquareRatio: slotConfig.treemapSquareRatio,
       treemapVisibleDepth: slotConfig.treemapVisibleDepth,
@@ -450,9 +545,13 @@ export function VisualizerProvider({ children, props }: VisualizerProviderProps)
       funnelGap: slotConfig.funnelGap,
       funnelNeckWidth: slotConfig.funnelNeckWidth,
       funnelNeckHeight: slotConfig.funnelNeckHeight,
+      funnelLabelPosition: slotConfig.funnelLabelPosition,
+      funnelSort: slotConfig.funnelSort,
       boxplotBoxWidth: slotConfig.boxplotBoxWidth,
       boxplotShowScatter: slotConfig.boxplotShowScatter,
       boxplotOrientation: slotConfig.boxplotOrientation,
+      boxplotFillColor: slotConfig.boxplotFillColor,
+      boxplotBorderColor: slotConfig.boxplotBorderColor,
       scatterPointSize: slotConfig.scatterPointSize,
       scatterPointOpacity: slotConfig.scatterPointOpacity,
       scatterShowRegression: slotConfig.scatterShowRegression,
@@ -490,12 +589,17 @@ export function VisualizerProvider({ children, props }: VisualizerProviderProps)
       graphGravity: slotConfig.graphGravity,
       graphCurveness: slotConfig.graphCurveness,
       graphShowLinkWeights: slotConfig.graphShowLinkWeights,
+      graphNodeSize: slotConfig.graphNodeSize,
+      graphDraggable: slotConfig.graphDraggable,
       gaugeStartAngle: slotConfig.gaugeStartAngle,
       gaugeEndAngle: slotConfig.gaugeEndAngle,
       gaugePointerWidth: slotConfig.gaugePointerWidth,
       gaugeDialWidth: slotConfig.gaugeDialWidth,
+      gaugeUnit: slotConfig.gaugeUnit,
+      gaugeSplitNumber: slotConfig.gaugeSplitNumber,
       calendarCellSize: slotConfig.calendarCellSize,
       calendarYear: slotConfig.calendarYear,
+      calendarColorPreset: slotConfig.calendarColorPreset,
       stackedNormalized: slotConfig.stackedNormalized,
       stackedReverseOrder: slotConfig.stackedReverseOrder,
       stackedPerBarSorting: slotConfig.stackedPerBarSorting,
@@ -600,7 +704,7 @@ export function VisualizerProvider({ children, props }: VisualizerProviderProps)
       smartColorPropagation: slotConfig.smartColorPropagation,
       ...overrides
     });
-  }, [config.slotsConfig, config.currentSlotConfig, layout.layoutMode, papers, style, camera, umbrellanizerMap]);
+  }, [config.slotsConfig, config.currentSlotConfig, layout.layoutMode, activePapers, style, camera, umbrellanizerMap]);
 
   const canvas = useChartCanvas({
     isOpen,

@@ -6,6 +6,7 @@ import { Sparkles, Palette, RotateCcw } from 'lucide-react';
 export function VerticalBarConfigPanel() {
   const { config } = useVisualizerContext();
   const {
+    metricMode,
     barThickness,
     setBarThickness,
     barBorderRadius,
@@ -54,10 +55,12 @@ export function VerticalBarConfigPanel() {
     setBarBenchmarkColor
   } = config;
 
+  const isAvgMetric = metricMode === 'avg_qa' || metricMode === 'avg_citation';
+
   return (
     <div className="space-y-4">
       {/* 1. Sorting, Column Dimensions & Spacing */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
         <div className="space-y-1">
           <label className="text-xs font-bold text-foreground block">Column Sorting Order</label>
           <select
@@ -91,6 +94,18 @@ export function VerticalBarConfigPanel() {
             max={16}
             value={barBorderRadius}
             onChange={(e) => setBarBorderRadius(Number(e.target.value))}
+            className="w-full accent-primary"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground block">Category Gap ({barGap}%)</label>
+          <input
+            type="range"
+            min={0}
+            max={80}
+            value={barGap}
+            onChange={(e) => setBarGap(Number(e.target.value))}
             className="w-full accent-primary"
           />
         </div>
@@ -254,14 +269,13 @@ export function VerticalBarConfigPanel() {
         </div>
 
         <div className="space-y-1">
-          <label className="text-xs font-bold text-foreground block">Column Gap ({barGap}%)</label>
+          <label className="text-xs font-bold text-foreground block">Grid Step Interval</label>
           <input
-            type="range"
-            min={0}
-            max={150}
-            value={barGap}
-            onChange={(e) => setBarGap(Number(e.target.value))}
-            className="w-full accent-primary"
+            type="text"
+            value={barValueInterval}
+            onChange={(e) => setBarValueInterval(e.target.value === 'auto' ? 'auto' : (Number(e.target.value) || 'auto'))}
+            placeholder="auto or e.g. 10"
+            className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-bold text-foreground font-mono"
           />
         </div>
 
@@ -342,6 +356,57 @@ export function VerticalBarConfigPanel() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* 5. Scientific Publishing Accessibility & Error Bars */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
+        {/* Texture Hatching for Monochrome Print */}
+        <div className="p-3 bg-secondary/30 border border-border/70 rounded-xl space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">
+            <input
+              type="checkbox"
+              checked={enableHatchPatterns}
+              onChange={(e) => setEnableHatchPatterns(e.target.checked)}
+              className="rounded border-border text-primary"
+            />
+            Academic Texture Hatching (Print / Grayscale)
+          </label>
+          <p className="text-[11px] text-muted-foreground leading-tight">
+            Applies distinct monochrome SVG patterns (stripes, cross-hatch, stippling) to differentiate columns in black-and-white print.
+          </p>
+        </div>
+
+        {/* Statistical Error Bars */}
+        <div className="p-3 bg-secondary/30 border border-border/70 rounded-xl space-y-2">
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-foreground">
+            <input
+              type="checkbox"
+              checked={enableErrorBars}
+              disabled={!isAvgMetric}
+              onChange={(e) => setEnableErrorBars(e.target.checked)}
+              className="rounded border-border text-primary disabled:opacity-50"
+            />
+            Scientific Error Bars (Variance Indicators)
+          </label>
+          {isAvgMetric ? (
+            <div className="space-y-1">
+              <select
+                value={errorBarType}
+                disabled={!enableErrorBars}
+                onChange={(e) => setErrorBarType(e.target.value as any)}
+                className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs text-foreground font-bold disabled:opacity-50"
+              >
+                <option value="std_error">Standard Error (± SE)</option>
+                <option value="std_dev">Standard Deviation (± SD)</option>
+                <option value="ci_95">95% Confidence Interval (± 1.96 SE)</option>
+              </select>
+            </div>
+          ) : (
+            <p className="text-[11px] text-muted-foreground leading-tight">
+              Error bars are active when metric is set to Average QA Score or Average Citation Count.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1308,18 +1373,36 @@ export function LineConfigPanel() {
             </div>
           </div>
 
-          <div className="space-y-1 pt-1">
-            <label className="text-xs font-bold text-foreground block">Step Line Transition</label>
-            <select
-              value={lineStepMode}
-              onChange={(e) => setLineStepMode(e.target.value as any)}
-              className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
-            >
-              <option value="none">Continuous / Linear</option>
-              <option value="start">Step at Start</option>
-              <option value="middle">Step at Middle</option>
-              <option value="end">Step at End</option>
-            </select>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-foreground block">Marker Symbol</label>
+              <select
+                value={lineMarkerSymbol}
+                onChange={(e) => setLineMarkerSymbol(e.target.value as any)}
+                className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+              >
+                <option value="circle">Filled Circle (●)</option>
+                <option value="emptyCircle">Hollow Circle (○)</option>
+                <option value="rect">Square (■)</option>
+                <option value="triangle">Triangle (▲)</option>
+                <option value="diamond">Diamond (◆)</option>
+                <option value="none">None (Hidden)</option>
+              </select>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-foreground block">Step Line Transition</label>
+              <select
+                value={lineStepMode}
+                onChange={(e) => setLineStepMode(e.target.value as any)}
+                className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+              >
+                <option value="none">Continuous / Linear</option>
+                <option value="start">Step at Start</option>
+                <option value="middle">Step at Middle</option>
+                <option value="end">Step at End</option>
+              </select>
+            </div>
           </div>
 
           {/* Point Data Labels */}
@@ -1404,6 +1487,12 @@ export function PieDonutConfigPanel() {
     setPiePadAngle,
     pieCornerRadius,
     setPieCornerRadius,
+    pieSort = 'desc',
+    setPieSort,
+    pieStartAngle = 90,
+    setPieStartAngle,
+    pieMinAngle = 0,
+    setPieMinAngle,
     showDataLabels,
     setShowDataLabels,
     labelFormat,
@@ -1464,7 +1553,48 @@ export function PieDonutConfigPanel() {
         </div>
       </div>
 
-      {/* 2. Slice Geometry & Corner Radii */}
+      {/* 2. Slice Sorting & Angles */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground block">Slice Sorting Order</label>
+          <select
+            value={pieSort}
+            onChange={(e) => setPieSort(e.target.value as any)}
+            className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+          >
+            <option value="desc">Descending (Largest First)</option>
+            <option value="asc">Ascending (Smallest First)</option>
+            <option value="none">Alphabetical / Natural</option>
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground block">Start Angle ({pieStartAngle}°)</label>
+          <input
+            type="range"
+            min={0}
+            max={360}
+            step={15}
+            value={pieStartAngle}
+            onChange={(e) => setPieStartAngle(Number(e.target.value))}
+            className="w-full accent-primary"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground block">Min Slice Angle ({pieMinAngle}°)</label>
+          <input
+            type="range"
+            min={0}
+            max={20}
+            value={pieMinAngle}
+            onChange={(e) => setPieMinAngle(Number(e.target.value))}
+            className="w-full accent-primary"
+          />
+        </div>
+      </div>
+
+      {/* 3. Slice Geometry & Corner Radii */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
         <div className="space-y-1">
           <label className="text-xs font-bold text-foreground block">Slice Corner Radius ({pieCornerRadius}px)</label>
@@ -1643,6 +1773,8 @@ export function FunnelConfigPanel() {
     setFunnelNeckWidth,
     funnelNeckHeight,
     setFunnelNeckHeight,
+    funnelSort = 'descending',
+    setFunnelSort,
     showDataLabels,
     setShowDataLabels,
     funnelLabelPosition = 'inside',
@@ -1655,12 +1787,25 @@ export function FunnelConfigPanel() {
     setFunnelLabelFontWeight,
     funnelLabelColor = '',
     setFunnelLabelColor
-  } = config as any;
+  } = config;
 
   return (
     <div className="space-y-4">
       {/* 1. Geometry & Alignment */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground block">Funnel Sorting</label>
+          <select
+            value={funnelSort}
+            onChange={(e) => setFunnelSort(e.target.value as any)}
+            className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+          >
+            <option value="descending">Descending (Widest at Top)</option>
+            <option value="ascending">Ascending (Narrowest at Top / Inverted Pyramid)</option>
+            <option value="none">Dataset / Natural Order</option>
+          </select>
+        </div>
+
         <div className="space-y-1">
           <label className="text-xs font-bold text-foreground block">Funnel Alignment</label>
           <select
@@ -1905,7 +2050,11 @@ export function BoxplotConfigPanel() {
     boxplotOrientation,
     setBoxplotOrientation,
     boxplotShowScatter,
-    setBoxplotShowScatter
+    setBoxplotShowScatter,
+    boxplotFillColor = '',
+    setBoxplotFillColor,
+    boxplotBorderColor = '',
+    setBoxplotBorderColor
   } = config;
 
   return (
@@ -1936,6 +2085,46 @@ export function BoxplotConfigPanel() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground block">Box Fill Color</label>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="color"
+              value={boxplotFillColor || '#3b82f6'}
+              onChange={(e) => setBoxplotFillColor(e.target.value)}
+              className="w-7 h-7 rounded border border-border cursor-pointer bg-transparent"
+            />
+            <input
+              type="text"
+              value={boxplotFillColor}
+              onChange={(e) => setBoxplotFillColor(e.target.value)}
+              placeholder="Theme Tint"
+              className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-mono text-foreground"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground block">Box & Whisker Border Color</label>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="color"
+              value={boxplotBorderColor || '#1e3a8a'}
+              onChange={(e) => setBoxplotBorderColor(e.target.value)}
+              className="w-7 h-7 rounded border border-border cursor-pointer bg-transparent"
+            />
+            <input
+              type="text"
+              value={boxplotBorderColor}
+              onChange={(e) => setBoxplotBorderColor(e.target.value)}
+              placeholder="Theme Default"
+              className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-mono text-foreground"
+            />
+          </div>
+        </div>
+      </div>
+
       <div className="p-3 bg-secondary/30 rounded-xl border border-border/40 flex items-center justify-between">
         <div>
           <span className="text-xs font-bold text-foreground block">Jitter Scatter Overlay</span>
@@ -1959,6 +2148,14 @@ export function ScatterConfigPanel() {
     setScatterPointSize,
     scatterPointOpacity,
     setScatterPointOpacity,
+    scatterSymbol = 'circle',
+    setScatterSymbol,
+    scatterColor = '',
+    setScatterColor,
+    scatterBorderColor = '',
+    setScatterBorderColor,
+    scatterBorderWidth = 0,
+    setScatterBorderWidth,
     scatterShowRegression,
     setScatterShowRegression,
     scatterRegressionType,
@@ -1966,14 +2163,31 @@ export function ScatterConfigPanel() {
   } = config;
 
   return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <div className="space-y-4">
+      {/* 1. Point Geometry & Symbol */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground block">Point Symbol</label>
+          <select
+            value={scatterSymbol}
+            onChange={(e) => setScatterSymbol(e.target.value as any)}
+            className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs text-foreground font-bold"
+          >
+            <option value="circle">Circle (Default)</option>
+            <option value="diamond">Diamond</option>
+            <option value="rect">Square / Rectangle</option>
+            <option value="triangle">Triangle</option>
+            <option value="roundRect">Rounded Square</option>
+            <option value="pin">Pin Marker</option>
+          </select>
+        </div>
+
         <div className="space-y-1">
           <label className="text-xs font-bold text-foreground block">Point Size ({scatterPointSize}px)</label>
           <input
             type="range"
             min={4}
-            max={24}
+            max={28}
             value={scatterPointSize}
             onChange={(e) => setScatterPointSize(Number(e.target.value))}
             className="w-full accent-primary"
@@ -1993,6 +2207,61 @@ export function ScatterConfigPanel() {
         </div>
       </div>
 
+      {/* 2. Color & Border Styling */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground block">Point Fill Color</label>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="color"
+              value={scatterColor || '#3b82f6'}
+              onChange={(e) => setScatterColor(e.target.value)}
+              className="w-7 h-7 rounded border border-border cursor-pointer bg-transparent"
+            />
+            <input
+              type="text"
+              value={scatterColor}
+              onChange={(e) => setScatterColor(e.target.value)}
+              placeholder="Theme Default"
+              className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-mono text-foreground"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground block">Border Color</label>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="color"
+              value={scatterBorderColor || '#1e3a8a'}
+              onChange={(e) => setScatterBorderColor(e.target.value)}
+              className="w-7 h-7 rounded border border-border cursor-pointer bg-transparent"
+            />
+            <input
+              type="text"
+              value={scatterBorderColor}
+              onChange={(e) => setScatterBorderColor(e.target.value)}
+              placeholder="None"
+              className="w-full bg-card border border-border rounded-lg px-2 py-1 text-xs font-mono text-foreground"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground block">Border Width ({scatterBorderWidth}px)</label>
+          <input
+            type="range"
+            min={0}
+            max={6}
+            step={0.5}
+            value={scatterBorderWidth}
+            onChange={(e) => setScatterBorderWidth(Number(e.target.value))}
+            className="w-full accent-primary"
+          />
+        </div>
+      </div>
+
+      {/* 3. Statistical Regression */}
       <div className="pt-2 border-t border-border/40 space-y-2">
         <div className="flex items-center justify-between">
           <label className="text-xs font-bold text-foreground flex items-center gap-2 cursor-pointer">
@@ -2283,6 +2552,10 @@ export function GraphConfigPanel() {
     setGraphGravity,
     graphCurveness,
     setGraphCurveness,
+    graphNodeSize,
+    setGraphNodeSize,
+    graphDraggable,
+    setGraphDraggable,
     showDataLabels,
     setShowDataLabels,
     graphShowLinkWeights,
@@ -2341,11 +2614,36 @@ export function GraphConfigPanel() {
             className="w-full accent-primary"
           />
         </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground block">Base Node Size ({graphNodeSize}px)</label>
+          <input
+            type="range"
+            min={8}
+            max={50}
+            value={graphNodeSize}
+            onChange={(e) => setGraphNodeSize(Number(e.target.value))}
+            className="w-full accent-primary"
+          />
+        </div>
       </div>
 
-      {/* Node Labels & Edge Weights */}
+      {/* Node Labels, Draggability & Edge Weights */}
       <div className="p-3 bg-secondary/30 border border-border/60 rounded-xl space-y-3">
         <div className="flex items-center justify-between">
+          <div>
+            <span className="text-xs font-bold text-foreground block">Draggable Vertices</span>
+            <span className="text-[10px] text-muted-foreground block">Allow manual vertex dragging to untangle network clusters</span>
+          </div>
+          <input
+            type="checkbox"
+            checked={graphDraggable}
+            onChange={(e) => setGraphDraggable(e.target.checked)}
+            className="w-4 h-4 rounded border-border text-primary"
+          />
+        </div>
+
+        <div className="pt-2 border-t border-border/40 flex items-center justify-between">
           <div>
             <span className="text-xs font-bold text-foreground block">Display Node Labels</span>
             <span className="text-[10px] text-muted-foreground block">Show entity names next to vertices</span>
@@ -2366,7 +2664,7 @@ export function GraphConfigPanel() {
           <input
             type="checkbox"
             checked={graphShowLinkWeights}
-            onChange={(e) => setGraphShowLinkWeights?.(e.target.checked)}
+            onChange={(e) => setGraphShowLinkWeights(e.target.checked)}
             className="w-4 h-4 rounded border-border text-primary"
           />
         </div>
@@ -2387,7 +2685,11 @@ export function GaugeConfigPanel() {
     gaugePointerWidth,
     setGaugePointerWidth,
     gaugeDialWidth,
-    setGaugeDialWidth
+    setGaugeDialWidth,
+    gaugeUnit,
+    setGaugeUnit,
+    gaugeSplitNumber,
+    setGaugeSplitNumber
   } = config;
 
   return (
@@ -2413,6 +2715,36 @@ export function GaugeConfigPanel() {
             max={28}
             value={gaugeDialWidth}
             onChange={(e) => setGaugeDialWidth(Number(e.target.value))}
+            className="w-full accent-primary"
+          />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-border/40">
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground block">Metric Unit Suffix</label>
+          <select
+            value={gaugeUnit}
+            onChange={(e) => setGaugeUnit(e.target.value)}
+            className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-bold text-foreground"
+          >
+            <option value="auto">Auto (Percent for Ratios, Blank for Counts)</option>
+            <option value="%">Percent (%)</option>
+            <option value="cit">Citations (cit)</option>
+            <option value="pts">Points (pts)</option>
+            <option value="papers">Papers</option>
+            <option value="none">None (Raw Number)</option>
+          </select>
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground block">Scale Ticks / Splits ({gaugeSplitNumber})</label>
+          <input
+            type="range"
+            min={2}
+            max={10}
+            value={gaugeSplitNumber}
+            onChange={(e) => setGaugeSplitNumber(Number(e.target.value))}
             className="w-full accent-primary"
           />
         </div>
@@ -2465,12 +2797,14 @@ export function CalendarConfigPanel() {
     calendarCellSize,
     setCalendarCellSize,
     calendarYear,
-    setCalendarYear
+    setCalendarYear,
+    calendarColorPreset,
+    setCalendarColorPreset
   } = config;
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-secondary/30 border border-border/60 rounded-xl">
         <div className="space-y-1">
           <label className="text-xs font-bold text-foreground block">Date Grid Cell Size ({calendarCellSize}px)</label>
           <input
@@ -2492,6 +2826,21 @@ export function CalendarConfigPanel() {
             placeholder="auto or e.g. 2025"
             className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-bold text-foreground"
           />
+        </div>
+
+        <div className="space-y-1">
+          <label className="text-xs font-bold text-foreground block">Heat Color Theme</label>
+          <select
+            value={calendarColorPreset}
+            onChange={(e) => setCalendarColorPreset(e.target.value as any)}
+            className="w-full bg-card border border-border rounded-lg px-2.5 py-1.5 text-xs font-bold text-foreground"
+          >
+            <option value="academic">Academic Blue/Slate</option>
+            <option value="viridis">Viridis Scientific</option>
+            <option value="plasma">Plasma High-Contrast</option>
+            <option value="thermal">Thermal Heatmap</option>
+            <option value="coolwarm">Cool-Warm Divergent</option>
+          </select>
         </div>
       </div>
     </div>

@@ -7,7 +7,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#09090b',
     subtext: '#52525b',
-    border: '#e4e4e7'
+    border: '#e4e4e7',
+    accent: '#3f3f46',
+    secondary: '#71717a',
+    surface: '#ffffff',
+    gridLine: '#f4f4f5',
+    heatScale: ['#fafafa', '#e4e4e7', '#a1a1aa', '#71717a', '#3f3f46', '#18181b']
   },
   ieee_blue: {
     name: 'IEEE / ACM Slate Blue',
@@ -15,7 +20,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#0f172a',
     subtext: '#475569',
-    border: '#cbd5e1'
+    border: '#cbd5e1',
+    accent: '#2563eb',
+    secondary: '#0284c7',
+    surface: '#ffffff',
+    gridLine: '#eff6ff',
+    heatScale: ['#f0f9ff', '#bae6fd', '#38bdf8', '#2563eb', '#1e3a8a', '#0f172a']
   },
   nature_emerald: {
     name: 'Nature / BioMed Emerald',
@@ -23,7 +33,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#022c22',
     subtext: '#047857',
-    border: '#a7f3d0'
+    border: '#a7f3d0',
+    accent: '#059669',
+    secondary: '#0284c7',
+    surface: '#ffffff',
+    gridLine: '#f0fdf4',
+    heatScale: ['#f0fdf4', '#bbf7d0', '#34d399', '#059669', '#047857', '#064e3b']
   },
   science_contrast: {
     name: 'Science High-Contrast',
@@ -31,7 +46,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#111827',
     subtext: '#4b5563',
-    border: '#e5e7eb'
+    border: '#e5e7eb',
+    accent: '#1d4ed8',
+    secondary: '#047857',
+    surface: '#ffffff',
+    gridLine: '#f9fafb',
+    heatScale: ['#fff7ed', '#fed7aa', '#f97316', '#dc2626', '#b91c1c', '#7f1d1d']
   },
   acs_crimson: {
     name: 'ACS Chemical Society Crimson',
@@ -39,7 +59,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#18181b',
     subtext: '#52525b',
-    border: '#e4e4e7'
+    border: '#e4e4e7',
+    accent: '#d97706',
+    secondary: '#0284c7',
+    surface: '#ffffff',
+    gridLine: '#fef2f2',
+    heatScale: ['#fff1f2', '#fecdd3', '#f43f5e', '#dc2626', '#990000', '#4c0519']
   },
   pnas_gold: {
     name: 'PNAS Amber & Deep Teal',
@@ -47,7 +72,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#0f172a',
     subtext: '#475569',
-    border: '#cbd5e1'
+    border: '#cbd5e1',
+    accent: '#b45309',
+    secondary: '#1e40af',
+    surface: '#ffffff',
+    gridLine: '#f0fdfa',
+    heatScale: ['#f0fdfa', '#ccfbf1', '#5eead4', '#0f766e', '#b45309', '#78350f']
   },
   oxford_burgundy: {
     name: 'Oxford Academic Burgundy',
@@ -55,7 +85,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#1e1b4b',
     subtext: '#4338ca',
-    border: '#e0e7ff'
+    border: '#e0e7ff',
+    accent: '#0369a1',
+    secondary: '#15803d',
+    surface: '#ffffff',
+    gridLine: '#fdf4ff',
+    heatScale: ['#fdf4ff', '#f5d0fe', '#d946ef', '#a21caf', '#701a75', '#4a044e']
   },
   wiley_indigo: {
     name: 'Wiley Scientific Indigo',
@@ -63,7 +98,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#1e1b4b',
     subtext: '#3730a3',
-    border: '#c7d2fe'
+    border: '#c7d2fe',
+    accent: '#d97706',
+    secondary: '#0284c7',
+    surface: '#ffffff',
+    gridLine: '#e0e7ff',
+    heatScale: ['#eef2ff', '#c7d2fe', '#818cf8', '#4f46e5', '#3730a3', '#1e1b4b']
   },
   taylor_sapphire: {
     name: 'Taylor & Francis Sapphire',
@@ -71,7 +111,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#0f172a',
     subtext: '#334155',
-    border: '#cbd5e1'
+    border: '#cbd5e1',
+    accent: '#c2410c',
+    secondary: '#047857',
+    surface: '#ffffff',
+    gridLine: '#f1f5f9',
+    heatScale: ['#eff6ff', '#bfdbfe', '#60a5fa', '#2563eb', '#1e3a8a', '#0f172a']
   },
   plos_coral: {
     name: 'PLOS ONE Coral & Slate',
@@ -79,7 +124,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#0f172a',
     subtext: '#475569',
-    border: '#e2e8f0'
+    border: '#e2e8f0',
+    accent: '#f97316',
+    secondary: '#0284c7',
+    surface: '#ffffff',
+    gridLine: '#f8fafc',
+    heatScale: ['#fff7ed', '#ffedd5', '#fed7aa', '#fb923c', '#f97316', '#c2410c']
   },
   frontiers_violet: {
     name: 'Frontiers Scientific Violet',
@@ -87,7 +137,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#1e1b4b',
     subtext: '#4c1d95',
-    border: '#ddd6fe'
+    border: '#ddd6fe',
+    accent: '#f59e0b',
+    secondary: '#0284c7',
+    surface: '#ffffff',
+    gridLine: '#faf5ff',
+    heatScale: ['#faf5ff', '#ede9fe', '#c4b5fd', '#8b5cf6', '#6d28d9', '#4c1d95']
   },
   bmc_teal: {
     name: 'BioMed Central (BMC) Teal',
@@ -95,7 +150,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#042f2e',
     subtext: '#0f766e',
-    border: '#99f6e4'
+    border: '#99f6e4',
+    accent: '#c2410c',
+    secondary: '#1d4ed8',
+    surface: '#ffffff',
+    gridLine: '#f0fdfa',
+    heatScale: ['#f0fdfa', '#ccfbf1', '#5eead4', '#14b8a6', '#0f766e', '#134e4a']
   },
   mdpi_vermilion: {
     name: 'MDPI Open Access Vermilion',
@@ -103,7 +163,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#111827',
     subtext: '#374151',
-    border: '#e5e7eb'
+    border: '#e5e7eb',
+    accent: '#0284c7',
+    secondary: '#15803d',
+    surface: '#ffffff',
+    gridLine: '#f9fafb',
+    heatScale: ['#fef2f2', '#fee2e2', '#fca5a5', '#ef4444', '#dc2626', '#991b1b']
   },
   rsc_ultramarine: {
     name: 'RSC Chemistry Ultramarine',
@@ -111,7 +176,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#1e1b4b',
     subtext: '#3730a3',
-    border: '#c7d2fe'
+    border: '#c7d2fe',
+    accent: '#d97706',
+    secondary: '#b91c1c',
+    surface: '#ffffff',
+    gridLine: '#eff6ff',
+    heatScale: ['#eff6ff', '#dbeafe', '#93c5fd', '#3b82f6', '#1d4ed8', '#172554']
   },
   dark_modern: {
     name: 'SLR IDE Dark Mode',
@@ -119,7 +189,13 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#090d16',
     text: '#f8fafc',
     subtext: '#94a3b8',
-    border: '#1e293b'
+    border: '#1e293b',
+    accent: '#3b82f6',
+    secondary: '#10b981',
+    surface: '#111827',
+    gridLine: 'rgba(255, 255, 255, 0.08)',
+    isDark: true,
+    heatScale: ['#030712', '#1f2937', '#1e3a8a', '#2563eb', '#60a5fa', '#93c5fd']
   },
   slr_light: {
     name: 'SLR IDE Light Mode',
@@ -127,7 +203,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#f8fafc',
     text: '#0f172a',
     subtext: '#64748b',
-    border: '#e2e8f0'
+    border: '#e2e8f0',
+    accent: '#2563eb',
+    secondary: '#10b981',
+    surface: '#ffffff',
+    gridLine: '#f1f5f9',
+    heatScale: ['#f8fafc', '#e2e8f0', '#93c5fd', '#3b82f6', '#1d4ed8', '#0f172a']
   },
   cell_amethyst: {
     name: 'Cell Press Amethyst & Teal',
@@ -135,7 +216,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#1e1b4b',
     subtext: '#581c87',
-    border: '#e9d5ff'
+    border: '#e9d5ff',
+    accent: '#0284c7',
+    secondary: '#0d9488',
+    surface: '#ffffff',
+    gridLine: '#faf5ff',
+    heatScale: ['#faf5ff', '#e9d5ff', '#c084fc', '#9333ea', '#581c87', '#3b0764']
   },
   lancet_crimson: {
     name: 'The Lancet Clinical Ruby',
@@ -143,7 +229,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#1c1917',
     subtext: '#9f1239',
-    border: '#ffe4e6'
+    border: '#ffe4e6',
+    accent: '#1e40af',
+    secondary: '#047857',
+    surface: '#ffffff',
+    gridLine: '#fff1f2',
+    heatScale: ['#fff1f2', '#fecdd3', '#fb7185', '#e11d48', '#9f1239', '#4c0519']
   },
   nejm_navy: {
     name: 'NEJM Deep Navy & Copper',
@@ -151,7 +242,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#0f172a',
     subtext: '#1e3a8a',
-    border: '#dbeafe'
+    border: '#dbeafe',
+    accent: '#b45309',
+    secondary: '#0369a1',
+    surface: '#ffffff',
+    gridLine: '#eff6ff',
+    heatScale: ['#eff6ff', '#bfdbfe', '#60a5fa', '#1d4ed8', '#1e3a8a', '#172554']
   },
   springer_forest: {
     name: 'Springer Nature Deep Forest',
@@ -159,7 +255,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#052e16',
     subtext: '#166534',
-    border: '#bbf7d0'
+    border: '#bbf7d0',
+    accent: '#1d4ed8',
+    secondary: '#c2410c',
+    surface: '#ffffff',
+    gridLine: '#f0fdf4',
+    heatScale: ['#f0fdf4', '#bbf7d0', '#4ade80', '#16a34a', '#15803d', '#14532d']
   },
   jama_cardinal: {
     name: 'JAMA Medical Cardinal',
@@ -167,7 +268,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#1c1917',
     subtext: '#881337',
-    border: '#fecdd3'
+    border: '#fecdd3',
+    accent: '#0369a1',
+    secondary: '#047857',
+    surface: '#ffffff',
+    gridLine: '#fff1f2',
+    heatScale: ['#fff1f2', '#fecdd3', '#fb7185', '#e11d48', '#881337', '#4c0519']
   },
   iop_cyan: {
     name: 'IOP Publishing Quantum Cyan',
@@ -175,7 +281,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#083344',
     subtext: '#0e7490',
-    border: '#cffafe'
+    border: '#cffafe',
+    accent: '#dc2626',
+    secondary: '#4f46e5',
+    surface: '#ffffff',
+    gridLine: '#ecfeff',
+    heatScale: ['#ecfeff', '#a5f3fc', '#38bdf8', '#0891b2', '#0e7490', '#083344']
   },
   aps_amber: {
     name: 'APS Physical Review Amber',
@@ -183,7 +294,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#1c1917',
     subtext: '#b45309',
-    border: '#fef3c7'
+    border: '#fef3c7',
+    accent: '#1d4ed8',
+    secondary: '#047857',
+    surface: '#ffffff',
+    gridLine: '#fffbeb',
+    heatScale: ['#fffbeb', '#fef3c7', '#fde68a', '#fbbf24', '#d97706', '#78350f']
   },
   aaas_scarlet: {
     name: 'AAAS Science Advances Scarlet',
@@ -191,7 +307,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#18181b',
     subtext: '#991b1b',
-    border: '#fee2e2'
+    border: '#fee2e2',
+    accent: '#0284c7',
+    secondary: '#15803d',
+    surface: '#ffffff',
+    gridLine: '#fef2f2',
+    heatScale: ['#fef2f2', '#fecaca', '#f87171', '#dc2626', '#991b1b', '#450a0a']
   },
   cambridge_cobalt: {
     name: 'Cambridge University Cobalt',
@@ -199,7 +320,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#0f172a',
     subtext: '#1e3a8a',
-    border: '#bfdbfe'
+    border: '#bfdbfe',
+    accent: '#d97706',
+    secondary: '#0d9488',
+    surface: '#ffffff',
+    gridLine: '#eff6ff',
+    heatScale: ['#eff6ff', '#bfdbfe', '#60a5fa', '#2563eb', '#1e3a8a', '#172554']
   },
   elife_sage: {
     name: 'eLife Open Science Sage & Tangerine',
@@ -207,7 +333,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#064e3b',
     subtext: '#047857',
-    border: '#a7f3d0'
+    border: '#a7f3d0',
+    accent: '#ea580c',
+    secondary: '#2563eb',
+    surface: '#ffffff',
+    gridLine: '#f0fdf4',
+    heatScale: ['#f0fdf4', '#bbf7d0', '#4ade80', '#16a34a', '#047857', '#064e3b']
   },
   bmj_azure: {
     name: 'BMJ British Medical Azure',
@@ -215,7 +346,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#0c4a6e',
     subtext: '#0284c7',
-    border: '#bae6fd'
+    border: '#bae6fd',
+    accent: '#be123c',
+    secondary: '#047857',
+    surface: '#ffffff',
+    gridLine: '#f0f9ff',
+    heatScale: ['#f0f9ff', '#bae6fd', '#38bdf8', '#0284c7', '#0369a1', '#0c4a6e']
   },
   mit_monochrome: {
     name: 'MIT Technology Charcoal & Accent',
@@ -223,7 +359,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#09090b',
     subtext: '#52525b',
-    border: '#e4e4e7'
+    border: '#e4e4e7',
+    accent: '#2563eb',
+    secondary: '#dc2626',
+    surface: '#ffffff',
+    gridLine: '#f4f4f5',
+    heatScale: ['#fafafa', '#e4e4e7', '#a1a1aa', '#71717a', '#3f3f46', '#18181b']
   },
   harvard_crimson: {
     name: 'Harvard Academic Crimson',
@@ -231,7 +372,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#1c1917',
     subtext: '#a51c30',
-    border: '#fed7aa'
+    border: '#fed7aa',
+    accent: '#1e3a8a',
+    secondary: '#2e7d32',
+    surface: '#ffffff',
+    gridLine: '#fff1f2',
+    heatScale: ['#fff1f2', '#fecdd3', '#fb7185', '#e11d48', '#a51c30', '#4c0519']
   },
   frontiers_oceanic: {
     name: 'Frontiers Marine & Earth Oceanic',
@@ -239,7 +385,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#042f2e',
     subtext: '#0f766e',
-    border: '#99f6e4'
+    border: '#99f6e4',
+    accent: '#f59e0b',
+    secondary: '#0284c7',
+    surface: '#ffffff',
+    gridLine: '#f0fdfa',
+    heatScale: ['#f0fdfa', '#ccfbf1', '#5eead4', '#0d9488', '#0f766e', '#115e59']
   },
   cell_genomics_magenta: {
     name: 'Cell Genomics Royal Magenta',
@@ -247,7 +398,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#1e1b4b',
     subtext: '#a21caf',
-    border: '#f5d0fe'
+    border: '#f5d0fe',
+    accent: '#0284c7',
+    secondary: '#15803d',
+    surface: '#ffffff',
+    gridLine: '#fdf4ff',
+    heatScale: ['#fdf4ff', '#f5d0fe', '#d946ef', '#a21caf', '#701a75', '#4a044e']
   },
   dark_neon_science: {
     name: 'Dark Cybernetic Scientific Glow',
@@ -255,7 +411,143 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#0b0f19',
     text: '#f8fafc',
     subtext: '#94a3b8',
-    border: '#1e293b'
+    border: '#1e293b',
+    accent: '#fbbf24',
+    secondary: '#34d399',
+    surface: '#111827',
+    gridLine: 'rgba(255, 255, 255, 0.08)',
+    isDark: true,
+    heatScale: ['#030712', '#1e293b', '#0284c7', '#38bdf8', '#34d399', '#fbbf24']
+  },
+  nature_biotech_lavender: {
+    name: 'Nature Biotechnology Lavender & Jade',
+    colors: ['#7c3aed', '#059669', '#2563eb', '#d97706', '#db2777', '#0891b2', '#4b5563', '#10b981'],
+    bg: '#ffffff',
+    text: '#1e1b4b',
+    subtext: '#6d28d9',
+    border: '#ddd6fe',
+    accent: '#d97706',
+    secondary: '#059669',
+    surface: '#ffffff',
+    gridLine: '#faf5ff',
+    heatScale: ['#faf5ff', '#e9d5ff', '#c084fc', '#9333ea', '#6b21a8', '#3b0764']
+  },
+  cell_systems_cyan: {
+    name: 'Cell Systems Bio-Cyan & Coral',
+    colors: ['#0891b2', '#f43f5e', '#10b981', '#6366f1', '#f59e0b', '#0284c7', '#84cc16', '#e11d48'],
+    bg: '#ffffff',
+    text: '#083344',
+    subtext: '#0e7490',
+    border: '#cffafe',
+    accent: '#f43f5e',
+    secondary: '#10b981',
+    surface: '#ffffff',
+    gridLine: '#ecfeff',
+    heatScale: ['#ecfeff', '#a5f3fc', '#38bdf8', '#0284c7', '#0369a1', '#082f49']
+  },
+  acm_siggraph_aurora: {
+    name: 'ACM SIGGRAPH / VIS Aurora Spectral',
+    colors: ['#6366f1', '#06b6d4', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#3b82f6', '#14b8a6'],
+    bg: '#ffffff',
+    text: '#0f172a',
+    subtext: '#4338ca',
+    border: '#e0e7ff',
+    accent: '#ec4899',
+    secondary: '#06b6d4',
+    surface: '#ffffff',
+    gridLine: '#eef2ff',
+    heatScale: ['#eef2ff', '#c7d2fe', '#818cf8', '#6366f1', '#4338ca', '#1e1b4b']
+  },
+  ieee_robotics_amber: {
+    name: 'IEEE Robotics Cyber Amber & Slate',
+    colors: ['#d97706', '#1e293b', '#0284c7', '#16a34a', '#dc2626', '#7c3aed', '#0d9488', '#ea580c'],
+    bg: '#ffffff',
+    text: '#0f172a',
+    subtext: '#475569',
+    border: '#cbd5e1',
+    accent: '#0284c7',
+    secondary: '#1e293b',
+    surface: '#ffffff',
+    gridLine: '#fffbeb',
+    heatScale: ['#fffbeb', '#fde68a', '#fbbf24', '#d97706', '#b45309', '#78350f']
+  },
+  elsevier_geochem_terracotta: {
+    name: 'Elsevier Earth Terracotta & Deep Sea',
+    colors: ['#c2410c', '#0f766e', '#1e3a8a', '#b45309', '#4d7c0f', '#86198f', '#0369a1', '#b91c1c'],
+    bg: '#ffffff',
+    text: '#1c1917',
+    subtext: '#7c2d12',
+    border: '#fed7aa',
+    accent: '#0f766e',
+    secondary: '#1e3a8a',
+    surface: '#ffffff',
+    gridLine: '#fff7ed',
+    heatScale: ['#fff7ed', '#ffedd5', '#fb923c', '#ea580c', '#c2410c', '#7c2d12']
+  },
+  aps_quantum_violet: {
+    name: 'APS Physical Review Quantum Violet',
+    colors: ['#581c87', '#d97706', '#0284c7', '#059669', '#be123c', '#4338ca', '#0891b2', '#e11d48'],
+    bg: '#ffffff',
+    text: '#1e1b4b',
+    subtext: '#581c87',
+    border: '#ede9fe',
+    accent: '#d97706',
+    secondary: '#0284c7',
+    surface: '#ffffff',
+    gridLine: '#faf5ff',
+    heatScale: ['#faf5ff', '#ede9fe', '#c084fc', '#7e22ce', '#581c87', '#3b0764']
+  },
+  nih_nlm_clinical: {
+    name: 'NIH / NLM Clinical Coral & Pine',
+    colors: ['#e11d48', '#065f46', '#1e40af', '#d97706', '#4f46e5', '#0891b2', '#4b5563', '#059669'],
+    bg: '#ffffff',
+    text: '#0f172a',
+    subtext: '#334155',
+    border: '#e2e8f0',
+    accent: '#065f46',
+    secondary: '#1e40af',
+    surface: '#ffffff',
+    gridLine: '#fff1f2',
+    heatScale: ['#fff1f2', '#fecdd3', '#fb7185', '#e11d48', '#be123c', '#881337']
+  },
+  who_epidemiology_teal: {
+    name: 'WHO Epidemiology Deep Teal & Gold',
+    colors: ['#0f766e', '#f59e0b', '#1d4ed8', '#be123c', '#6d28d9', '#0284c7', '#047857', '#ea580c'],
+    bg: '#ffffff',
+    text: '#042f2e',
+    subtext: '#0f766e',
+    border: '#ccfbf1',
+    accent: '#f59e0b',
+    secondary: '#1d4ed8',
+    surface: '#ffffff',
+    gridLine: '#f0fdfa',
+    heatScale: ['#f0fdfa', '#ccfbf1', '#5eead4', '#14b8a6', '#0f766e', '#134e4a']
+  },
+  springer_humanities_sepia: {
+    name: 'Springer Humanities Warm Sepia',
+    colors: ['#78350f', '#1c1917', '#991b1b', '#065f46', '#1e3a8a', '#a16207', '#4a044e', '#52525b'],
+    bg: '#ffffff',
+    text: '#1c1917',
+    subtext: '#78350f',
+    border: '#fef3c7',
+    accent: '#991b1b',
+    secondary: '#065f46',
+    surface: '#ffffff',
+    gridLine: '#fffbeb',
+    heatScale: ['#fffbeb', '#fef3c7', '#fde68a', '#d97706', '#92400e', '#451a03']
+  },
+  nature_climate_sky: {
+    name: 'Nature Climate Change Glacier Sky',
+    colors: ['#0284c7', '#334155', '#059669', '#d97706', '#6366f1', '#dc2626', '#0e7490', '#15803d'],
+    bg: '#ffffff',
+    text: '#0f172a',
+    subtext: '#0369a1',
+    border: '#bae6fd',
+    accent: '#059669',
+    secondary: '#334155',
+    surface: '#ffffff',
+    gridLine: '#f0f9ff',
+    heatScale: ['#f0f9ff', '#e0f2fe', '#7dd3fc', '#0284c7', '#0369a1', '#082f49']
   },
   degrade_emerald: {
     name: 'Sequential Degradation: Emerald',
@@ -263,7 +555,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#022c22',
     subtext: '#047857',
-    border: '#a7f3d0'
+    border: '#a7f3d0',
+    accent: '#059669',
+    secondary: '#10b981',
+    surface: '#ffffff',
+    gridLine: '#f0fdf4',
+    heatScale: ['#f0fdf4', '#bbf7d0', '#4ade80', '#10b981', '#059669', '#064e3b']
   },
   degrade_crimson: {
     name: 'Sequential Degradation: Crimson Ruby',
@@ -271,7 +568,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#1c1917',
     subtext: '#9f1239',
-    border: '#ffe4e6'
+    border: '#ffe4e6',
+    accent: '#e11d48',
+    secondary: '#fb7185',
+    surface: '#ffffff',
+    gridLine: '#fff1f2',
+    heatScale: ['#fff1f2', '#fecdd3', '#fb7185', '#f43f5e', '#e11d48', '#881337']
   },
   degrade_amber: {
     name: 'Sequential Degradation: Amber Gold',
@@ -279,7 +581,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#1c1917',
     subtext: '#b45309',
-    border: '#fef3c7'
+    border: '#fef3c7',
+    accent: '#d97706',
+    secondary: '#fbbf24',
+    surface: '#ffffff',
+    gridLine: '#fffbeb',
+    heatScale: ['#fffbeb', '#fef3c7', '#fde68a', '#fbbf24', '#d97706', '#78350f']
   },
   degrade_violet: {
     name: 'Sequential Degradation: Royal Violet',
@@ -287,7 +594,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#1e1b4b',
     subtext: '#581c87',
-    border: '#ede9fe'
+    border: '#ede9fe',
+    accent: '#7c3aed',
+    secondary: '#a78bfa',
+    surface: '#ffffff',
+    gridLine: '#faf5ff',
+    heatScale: ['#faf5ff', '#ede9fe', '#ddd6fe', '#8b5cf6', '#7c3aed', '#3b0764']
   },
   degrade_teal: {
     name: 'Sequential Degradation: Oceanic Teal',
@@ -295,7 +607,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#042f2e',
     subtext: '#0f766e',
-    border: '#ccfbf1'
+    border: '#ccfbf1',
+    accent: '#0d9488',
+    secondary: '#2dd4bf',
+    surface: '#ffffff',
+    gridLine: '#f0fdfa',
+    heatScale: ['#f0fdfa', '#ccfbf1', '#99f6e4', '#14b8a6', '#0d9488', '#134e4a']
   },
   degrade_indigo: {
     name: 'Sequential Degradation: Midnight Indigo',
@@ -303,7 +620,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#1e1b4b',
     subtext: '#3730a3',
-    border: '#e0e7ff'
+    border: '#e0e7ff',
+    accent: '#4f46e5',
+    secondary: '#818cf8',
+    surface: '#ffffff',
+    gridLine: '#eef2ff',
+    heatScale: ['#eef2ff', '#e0e7ff', '#c7d2fe', '#6366f1', '#4f46e5', '#1e1b4b']
   },
   degrade_rose: {
     name: 'Sequential Degradation: Vivid Rose',
@@ -311,7 +633,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#1e1b4b',
     subtext: '#86198f',
-    border: '#fae8ff'
+    border: '#fae8ff',
+    accent: '#c026d3',
+    secondary: '#f5d0fe',
+    surface: '#ffffff',
+    gridLine: '#fdf4ff',
+    heatScale: ['#fdf4ff', '#fae8ff', '#f5d0fe', '#d946ef', '#a21caf', '#701a75']
   },
   degrade_orange: {
     name: 'Sequential Degradation: Copper Flame',
@@ -319,7 +646,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#1c1917',
     subtext: '#9a3412',
-    border: '#ffedd5'
+    border: '#ffedd5',
+    accent: '#ea580c',
+    secondary: '#f97316',
+    surface: '#ffffff',
+    gridLine: '#fff7ed',
+    heatScale: ['#fff7ed', '#ffedd5', '#fed7aa', '#f97316', '#ea580c', '#7c2d12']
   },
   degrade_cyan: {
     name: 'Sequential Degradation: Glacier Cyan',
@@ -327,7 +659,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#083344',
     subtext: '#0e7490',
-    border: '#e0f2fe'
+    border: '#e0f2fe',
+    accent: '#0891b2',
+    secondary: '#22d3ee',
+    surface: '#ffffff',
+    gridLine: '#ecfeff',
+    heatScale: ['#ecfeff', '#e0f2fe', '#cffafe', '#06b6d4', '#0891b2', '#164e63']
   },
   degrade_lime: {
     name: 'Sequential Degradation: Botanical Lime',
@@ -335,7 +672,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#052e16',
     subtext: '#166534',
-    border: '#dcfce7'
+    border: '#dcfce7',
+    accent: '#16a34a',
+    secondary: '#4ade80',
+    surface: '#ffffff',
+    gridLine: '#f0fdf4',
+    heatScale: ['#f0fdf4', '#dcfce7', '#bbf7d0', '#22c55e', '#16a34a', '#14532d']
   },
   degrade_plum: {
     name: 'Sequential Degradation: Imperial Plum',
@@ -343,7 +685,12 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#1e1b4b',
     subtext: '#701a75',
-    border: '#f5d0fe'
+    border: '#f5d0fe',
+    accent: '#86198f',
+    secondary: '#a855f7',
+    surface: '#ffffff',
+    gridLine: '#faf5ff',
+    heatScale: ['#faf5ff', '#f3e8ff', '#e9d5ff', '#a855f7', '#86198f', '#4a044e']
   },
   degrade_slate: {
     name: 'Sequential Degradation: Titanium Slate',
@@ -351,6 +698,299 @@ export const THEME_PALETTES: Record<ThemePreset, ThemePalette> = {
     bg: '#ffffff',
     text: '#020617',
     subtext: '#334155',
-    border: '#cbd5e1'
+    border: '#cbd5e1',
+    accent: '#334155',
+    secondary: '#1e293b',
+    surface: '#ffffff',
+    gridLine: '#f8fafc',
+    heatScale: ['#f8fafc', '#e2e8f0', '#94a3b8', '#475569', '#1e293b', '#020617']
+  },
+  degrade_magma_dark: {
+    name: 'Sequential Degradation: Dark Magma Glow',
+    colors: ['#fbbf24', '#f97316', '#dc2626', '#9333ea', '#3b0764', '#0f172a'],
+    bg: '#0b0f19',
+    text: '#f8fafc',
+    subtext: '#94a3b8',
+    border: '#1e293b',
+    accent: '#fbbf24',
+    secondary: '#f97316',
+    surface: '#111827',
+    gridLine: 'rgba(255, 255, 255, 0.08)',
+    isDark: true,
+    heatScale: ['#030712', '#3b0764', '#7e22ce', '#e11d48', '#f97316', '#fbbf24']
+  },
+  degrade_viridis_academic: {
+    name: 'Sequential Degradation: Academic Viridis Spectrum',
+    colors: ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725', '#a7f3d0'],
+    bg: '#ffffff',
+    text: '#0f172a',
+    subtext: '#21918c',
+    border: '#a7f3d0',
+    accent: '#fde725',
+    secondary: '#21918c',
+    surface: '#ffffff',
+    gridLine: '#f0fdf4',
+    heatScale: ['#f7fee7', '#d9f99d', '#5ec962', '#21918c', '#3b528b', '#440154']
+  },
+  degrade_warm_bronze: {
+    name: 'Sequential Degradation: Warm Bronze & Amber',
+    colors: ['#451a03', '#78350f', '#92400e', '#b45309', '#d97706', '#fde68a'],
+    bg: '#ffffff',
+    text: '#1c1917',
+    subtext: '#78350f',
+    border: '#fef3c7',
+    accent: '#d97706',
+    secondary: '#b45309',
+    surface: '#ffffff',
+    gridLine: '#fffbeb',
+    heatScale: ['#fffbeb', '#fef3c7', '#fde68a', '#d97706', '#92400e', '#451a03']
+  },
+  degrade_arctic_ice: {
+    name: 'Sequential Degradation: Arctic Glacier Ice',
+    colors: ['#082f49', '#0369a1', '#0284c7', '#38bdf8', '#7dd3fc', '#e0f2fe'],
+    bg: '#ffffff',
+    text: '#082f49',
+    subtext: '#0369a1',
+    border: '#bae6fd',
+    accent: '#0284c7',
+    secondary: '#38bdf8',
+    surface: '#ffffff',
+    gridLine: '#f0f9ff',
+    heatScale: ['#f0f9ff', '#e0f2fe', '#7dd3fc', '#38bdf8', '#0284c7', '#082f49']
+  },
+  stanford_cardinal_red: {
+    name: 'Stanford Cardinal & Gold',
+    colors: ['#8c1515', '#f3d54e', '#4d4f53', '#0098db', '#eaab00', '#b83a4b'],
+    bg: '#ffffff',
+    text: '#2e2d29',
+    subtext: '#4d4f53',
+    border: '#d2c295',
+    accent: '#8c1515',
+    secondary: '#0098db',
+    surface: '#ffffff',
+    gridLine: '#fff1f2',
+    heatScale: ['#f9f3e5', '#f0e3c5', '#e1cd9d', '#d2c295', '#b83a4b', '#8c1515']
+  },
+  yale_historic_blue: {
+    name: 'Yale Historic Blue',
+    colors: ['#0f4d92', '#286ee0', '#5f7192', '#000000', '#dddddd', '#8f8f8f'],
+    bg: '#ffffff',
+    text: '#222222',
+    subtext: '#5f7192',
+    border: '#bdc1c6',
+    accent: '#0f4d92',
+    secondary: '#286ee0',
+    surface: '#ffffff',
+    gridLine: '#eff6ff',
+    heatScale: ['#e5eaf5', '#bdcde1', '#88a6cb', '#517fb5', '#286ee0', '#0f4d92']
+  },
+  princeton_orange_black: {
+    name: 'Princeton University Tiger Orange & Slate',
+    colors: ['#e77500', '#121212', '#2d3748', '#d97706', '#4a5568', '#f59e0b', '#718096', '#000000'],
+    bg: '#ffffff',
+    text: '#18181b',
+    subtext: '#71717a',
+    border: '#fed7aa',
+    accent: '#e77500',
+    secondary: '#121212',
+    surface: '#ffffff',
+    gridLine: '#fff7ed',
+    heatScale: ['#fff7ed', '#ffedd5', '#fed7aa', '#fb923c', '#e77500', '#9a3412']
+  },
+  columbia_crown_blue: {
+    name: 'Columbia University Crown Blue & Slate',
+    colors: ['#003865', '#75aadb', '#1d4ed8', '#0284c7', '#0369a1', '#0e7490', '#334155', '#475569'],
+    bg: '#ffffff',
+    text: '#0f172a',
+    subtext: '#003865',
+    border: '#bae6fd',
+    accent: '#75aadb',
+    secondary: '#003865',
+    surface: '#ffffff',
+    gridLine: '#f0f9ff',
+    heatScale: ['#f0f9ff', '#e0f2fe', '#bae6fd', '#75aadb', '#003865', '#021e38']
+  },
+  oxford_navy_gold: {
+    name: 'Oxford University Deep Navy & Gold',
+    colors: ['#002147', '#cfb991', '#1d4ed8', '#b45309', '#047857', '#9333ea', '#be123c', '#0284c7'],
+    bg: '#ffffff',
+    text: '#0f172a',
+    subtext: '#002147',
+    border: '#e2e8f0',
+    accent: '#cfb991',
+    secondary: '#002147',
+    surface: '#ffffff',
+    gridLine: '#f8fafc',
+    heatScale: ['#fbfaf7', '#f4efe4', '#e6dbc6', '#cfb991', '#002147', '#00142c']
+  },
+  caltech_persimmon: {
+    name: 'Caltech Persimmon Orange & Slate',
+    colors: ['#ff6c0c', '#333f48', '#0077c8', '#00a3e0', '#6366f1', '#10b981', '#f59e0b', '#d97706'],
+    bg: '#ffffff',
+    text: '#1c1917',
+    subtext: '#333f48',
+    border: '#ffedd5',
+    accent: '#ff6c0c',
+    secondary: '#0077c8',
+    surface: '#ffffff',
+    gridLine: '#fff7ed',
+    heatScale: ['#fff7ed', '#ffedd5', '#fed7aa', '#fb923c', '#ff6c0c', '#9a3412']
+  },
+  berkeley_blue_gold: {
+    name: 'UC Berkeley California Blue & Gold',
+    colors: ['#003262', '#fdb515', '#3b7ea1', '#c4820e', '#00b0da', '#d96b27', '#047857', '#5c768d'],
+    bg: '#ffffff',
+    text: '#003262',
+    subtext: '#3b7ea1',
+    border: '#fde68a',
+    accent: '#fdb515',
+    secondary: '#003262',
+    surface: '#ffffff',
+    gridLine: '#fefce8',
+    heatScale: ['#fefce8', '#fef08a', '#fde047', '#fdb515', '#3b7ea1', '#003262']
+  },
+  cmu_tartan_red: {
+    name: 'Carnegie Mellon Tartan Plaid & Crimson',
+    colors: ['#c41230', '#000000', '#043673', '#e0e0e0', '#6d6e71', '#007b85', '#b02a30', '#3b82f6'],
+    bg: '#ffffff',
+    text: '#1c1917',
+    subtext: '#6d6e71',
+    border: '#fecdd3',
+    accent: '#c41230',
+    secondary: '#043673',
+    surface: '#ffffff',
+    gridLine: '#fff1f2',
+    heatScale: ['#fff1f2', '#fecdd3', '#f87171', '#dc2626', '#c41230', '#7f1d1d']
+  },
+  eth_zurich_red: {
+    name: 'ETH Zürich Swiss Red & Pure Slate',
+    colors: ['#1f407a', '#a8322d', '#556575', '#006c66', '#a16e00', '#565656', '#2b5c8f', '#8f2420'],
+    bg: '#ffffff',
+    text: '#1f2937',
+    subtext: '#556575',
+    border: '#cbd5e1',
+    accent: '#a8322d',
+    secondary: '#1f407a',
+    surface: '#ffffff',
+    gridLine: '#f8fafc',
+    heatScale: ['#f8fafc', '#e2e8f0', '#93c5fd', '#1f407a', '#a8322d', '#601010']
+  },
+  nature_neuro_purple: {
+    name: 'Nature Neuroscience Deep Violet & Cyan',
+    colors: ['#4c1d95', '#06b6d4', '#ec4899', '#10b981', '#f59e0b', '#6366f1', '#3b82f6', '#8b5cf6'],
+    bg: '#ffffff',
+    text: '#1e1b4b',
+    subtext: '#4c1d95',
+    border: '#ddd6fe',
+    accent: '#06b6d4',
+    secondary: '#ec4899',
+    surface: '#ffffff',
+    gridLine: '#faf5ff',
+    heatScale: ['#faf5ff', '#ede9fe', '#c4b5fd', '#8b5cf6', '#4c1d95', '#2e1065']
+  },
+  science_robotics_cobalt: {
+    name: 'Science Robotics Cyber Cobalt & Amber',
+    colors: ['#1e40af', '#eab308', '#0f766e', '#dc2626', '#475569', '#0284c7', '#16a34a', '#7c3aed'],
+    bg: '#ffffff',
+    text: '#0f172a',
+    subtext: '#1e40af',
+    border: '#bfdbfe',
+    accent: '#eab308',
+    secondary: '#1e40af',
+    surface: '#ffffff',
+    gridLine: '#eff6ff',
+    heatScale: ['#eff6ff', '#bfdbfe', '#60a5fa', '#1e40af', '#eab308', '#ca8a04']
+  },
+  cell_stem_cell_teal: {
+    name: 'Cell Stem Cell Regenerative Teal & Vermilion',
+    colors: ['#0f766e', '#f97316', '#2563eb', '#10b981', '#8b5cf6', '#e11d48', '#0284c7', '#d97706'],
+    bg: '#ffffff',
+    text: '#042f2e',
+    subtext: '#0f766e',
+    border: '#99f6e4',
+    accent: '#f97316',
+    secondary: '#0f766e',
+    surface: '#ffffff',
+    gridLine: '#f0fdfa',
+    heatScale: ['#f0fdfa', '#ccfbf1', '#5eead4', '#14b8a6', '#0f766e', '#134e4a']
+  },
+  imperial_college_blue: {
+    name: 'Imperial College London Blue & Steel',
+    colors: ['#002147', '#005a9c', '#009688', '#e91e63', '#ff9800', '#607d8b', '#3f51b5', '#4caf50'],
+    bg: '#ffffff',
+    text: '#0f172a',
+    subtext: '#005a9c',
+    border: '#cbd5e1',
+    accent: '#009688',
+    secondary: '#005a9c',
+    surface: '#ffffff',
+    gridLine: '#f8fafc',
+    heatScale: ['#f0f9ff', '#cbe7f8', '#7cbbe3', '#005a9c', '#002147', '#001428']
+  },
+  sorbonne_paris_crimson: {
+    name: 'Sorbonne Université Paris Ruby & Gold',
+    colors: ['#800020', '#c5a059', '#1a365d', '#2c5282', '#744210', '#975a16', '#702459', '#2d3748'],
+    bg: '#ffffff',
+    text: '#1a202c',
+    subtext: '#800020',
+    border: '#fed7aa',
+    accent: '#c5a059',
+    secondary: '#800020',
+    surface: '#ffffff',
+    gridLine: '#fffaf0',
+    heatScale: ['#fffaf0', '#feebc8', '#fbd38d', '#c5a059', '#800020', '#4a0013']
+  },
+  tokyo_todai_blue: {
+    name: 'The University of Tokyo Todai Blue & Gold',
+    colors: ['#004098', '#ffc72c', '#0075c9', '#5c768d', '#c41230', '#009b77', '#2d3748', '#8b5cf6'],
+    bg: '#ffffff',
+    text: '#0f172a',
+    subtext: '#004098',
+    border: '#bfdbfe',
+    accent: '#ffc72c',
+    secondary: '#004098',
+    surface: '#ffffff',
+    gridLine: '#eff6ff',
+    heatScale: ['#eff6ff', '#bfdbfe', '#60a5fa', '#0075c9', '#004098', '#002254']
+  },
+  degrade_solar_flare: {
+    name: 'Sequential Degradation: Solar Flare Plasma',
+    colors: ['#450a0a', '#7f1d1d', '#b91c1c', '#ea580c', '#f59e0b', '#fef08a'],
+    bg: '#ffffff',
+    text: '#1c1917',
+    subtext: '#b91c1c',
+    border: '#fed7aa',
+    accent: '#ea580c',
+    secondary: '#f59e0b',
+    surface: '#ffffff',
+    gridLine: '#fff7ed',
+    heatScale: ['#fffbeb', '#fef3c7', '#fde68a', '#f59e0b', '#ea580c', '#7f1d1d']
+  },
+  degrade_deep_ocean: {
+    name: 'Sequential Degradation: Abyssal Deep Ocean',
+    colors: ['#020617', '#082f49', '#075985', '#0284c7', '#38bdf8', '#bae6fd'],
+    bg: '#ffffff',
+    text: '#082f49',
+    subtext: '#075985',
+    border: '#bae6fd',
+    accent: '#0284c7',
+    secondary: '#38bdf8',
+    surface: '#ffffff',
+    gridLine: '#f0f9ff',
+    heatScale: ['#f0f9ff', '#e0f2fe', '#bae6fd', '#38bdf8', '#0284c7', '#082f49']
+  },
+  dark_tokyo_cyber: {
+    name: 'Dark Neo-Tokyo High-Contrast Academic Slate',
+    colors: ['#38bdf8', '#f43f5e', '#a855f7', '#34d399', '#facc15', '#ec4899', '#60a5fa', '#818cf8'],
+    bg: '#030712',
+    text: '#f9fafb',
+    subtext: '#9ca3af',
+    border: '#1f2937',
+    accent: '#38bdf8',
+    secondary: '#f43f5e',
+    surface: '#111827',
+    gridLine: 'rgba(255, 255, 255, 0.08)',
+    isDark: true,
+    heatScale: ['#030712', '#111827', '#1e3a8a', '#0284c7', '#38bdf8', '#f43f5e']
   }
 };

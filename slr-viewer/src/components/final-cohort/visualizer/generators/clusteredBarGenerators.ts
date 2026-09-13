@@ -1,5 +1,5 @@
 import type * as echarts from 'echarts';
-import { getNodeColor, getContrastingTextColor, generateDistinctPalette } from '../utils/colorUtils';
+import { getNodeColor, getContrastingTextColor, generateDistinctPalette, hexToRgba, createVerticalGradient, createHorizontalGradient, resolvePaletteAccent } from '../utils/colorUtils';
 import { 
   getMappedFieldValue, 
   computeMetricValue, 
@@ -54,7 +54,7 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
     showAxisBaseline = true,
     customAxisTitleX,
     customAxisTitleY,
-    barLabelPosition,
+    barLabelPosition = 'right',
     barLabelFormat,
     barYAxisWidth,
     barYAxisOverflow,
@@ -256,10 +256,21 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
         stats: statsObj,
         errorBounds,
         itemStyle: {
-          ...patternStyle,
+          ...(enableHatchPatterns ? patternStyle : {
+            color: isHorizontal ? createHorizontalGradient(baseColor, 1, 0.84) : createVerticalGradient(baseColor, 1, 0.84),
+            borderColor: hexToRgba(baseColor, 0.9),
+            borderWidth: 0.5
+          }),
           borderRadius: isHorizontal 
             ? [0, barBorderRadius, barBorderRadius, 0]
             : [barBorderRadius, barBorderRadius, 0, 0]
+        },
+        emphasis: {
+          focus: 'series',
+          itemStyle: {
+            shadowBlur: 10,
+            shadowColor: hexToRgba(baseColor, 0.35)
+          }
         }
       };
     });
@@ -307,7 +318,10 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
       barGap: `${barInnerGap}%`,
       barCategoryGap: `${barClusterGap}%`,
       itemStyle: {
-        color: baseColor
+        ...patternStyle,
+        borderRadius: isHorizontal 
+          ? [0, barBorderRadius, barBorderRadius, 0]
+          : [barBorderRadius, barBorderRadius, 0, 0]
       },
       data: seriesData,
       label: {
@@ -323,7 +337,7 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
         color: (() => {
           const mode = ctx.barLabelColor ?? '';
           if (mode === '' || mode === 'match_series') {
-            return barLabelPosition.startsWith('inside') ? getContrastingTextColor(baseColor) : baseColor;
+            return (barLabelPosition || '').startsWith('inside') ? getContrastingTextColor(baseColor) : baseColor;
           }
           if (mode === 'foreground' || mode === 'theme' || mode === 'theme_contrast') {
             return palette.text;
@@ -334,7 +348,7 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
           if (ctx.universalLabelColor) {
             return ctx.universalLabelColor === 'foreground' ? palette.text : ctx.universalLabelColor;
           }
-          return barLabelPosition.startsWith('inside') ? getContrastingTextColor(baseColor) : baseColor;
+          return (barLabelPosition || '').startsWith('inside') ? getContrastingTextColor(baseColor) : baseColor;
         })(),
         formatter: (params: any) => {
           if (!showZero && (params.data?.paperCount === 0 || params.value === 0)) {
@@ -351,11 +365,12 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
   });
 
   // 3. Reference Benchmark Line
+  const benchmarkColor = barBenchmarkColor || palette.accent || palette.colors[1] || '#ef4444';
   const markLine = barBenchmarkLine ? {
     symbol: 'none',
     lineStyle: {
       type: barBenchmarkStyle,
-      color: barBenchmarkColor || '#ef4444',
+      color: benchmarkColor,
       width: 2
     },
     label: {
@@ -364,7 +379,7 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
       formatter: `${barBenchmarkLabel || 'Target Benchmark'} (${barBenchmarkValue}${isPctMetric ? '%' : ''})`,
       fontFamily: font,
       fontSize: Math.max(9, fontSize - 2),
-      color: barBenchmarkColor || '#ef4444',
+      color: benchmarkColor,
       fontWeight: 'bold' as const
     },
     data: [
@@ -471,6 +486,91 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
 
   const seriesColors = seriesObjects.map((s: any) => s.itemStyle?.color).filter(Boolean);
 
+  let errorBarSeries: any = null;
+  if (enableErrorBars && (metricMode === 'avg_qa' || metricMode === 'avg_citation')) {
+    const errData: any[] = [];
+    const numTargetKey = metricMode === 'avg_qa' ? 'Overall_QA' : 'citation_count';
+    const seriesCount = seriesList.length;
+
+    categories.forEach((cat, cIdx) => {
+      const secMap = matrixMap.get(cat);
+      seriesList.forEach((sKey: string, sIdx: number) => {
+        const pList = secMap?.get(sKey) || [];
+        const stats = computeGroupStatistics(pList, numTargetKey);
+        const bounds = getErrorBounds(stats, errorBarType);
+        errData.push([cIdx, sIdx, bounds.lower, bounds.upper]);
+      });
+    });
+
+    errorBarSeries = {
+      name: 'Error Bounds',
+      type: 'custom',
+      renderItem: (params: any, api: any) => {
+        const cIdx = api.value(0);
+        const sIdx = api.value(1);
+        const low = api.value(2);
+        const high = api.value(3);
+        const halfCap = 4;
+        const strokeColor = palette.text;
+        const step = (barThickness ?? 22) * (1 + (barInnerGap ?? 15) / 100);
+        const clusterOffset = (sIdx - (seriesCount - 1) / 2) * step;
+
+        if (isHorizontal) {
+          const yCenter = api.coord([0, cIdx])[1] + clusterOffset;
+          const xLow = api.coord([low, cIdx])[0];
+          const xHigh = api.coord([high, cIdx])[0];
+          return {
+            type: 'group',
+            children: [
+              {
+                type: 'line',
+                shape: { x1: xLow, y1: yCenter, x2: xHigh, y2: yCenter },
+                style: api.style({ stroke: strokeColor, lineWidth: 1.5 })
+              },
+              {
+                type: 'line',
+                shape: { x1: xLow, y1: yCenter - halfCap, x2: xLow, y2: yCenter + halfCap },
+                style: api.style({ stroke: strokeColor, lineWidth: 1.5 })
+              },
+              {
+                type: 'line',
+                shape: { x1: xHigh, y1: yCenter - halfCap, x2: xHigh, y2: yCenter + halfCap },
+                style: api.style({ stroke: strokeColor, lineWidth: 1.5 })
+              }
+            ]
+          };
+        } else {
+          const xCenter = api.coord([cIdx, 0])[0] + clusterOffset;
+          const yLow = api.coord([cIdx, low])[1];
+          const yHigh = api.coord([cIdx, high])[1];
+          return {
+            type: 'group',
+            children: [
+              {
+                type: 'line',
+                shape: { x1: xCenter, y1: yLow, x2: xCenter, y2: yHigh },
+                style: api.style({ stroke: strokeColor, lineWidth: 1.5 })
+              },
+              {
+                type: 'line',
+                shape: { x1: xCenter - halfCap, y1: yLow, x2: xCenter + halfCap, y2: yLow },
+                style: api.style({ stroke: strokeColor, lineWidth: 1.5 })
+              },
+              {
+                type: 'line',
+                shape: { x1: xCenter - halfCap, y1: yHigh, x2: xCenter + halfCap, y2: yHigh },
+                style: api.style({ stroke: strokeColor, lineWidth: 1.5 })
+              }
+            ]
+          };
+        }
+      },
+      data: errData,
+      z: 10,
+      silent: true
+    };
+  }
+
   return {
     backgroundColor: palette.bg,
     color: seriesColors.length > 0 ? seriesColors : palette.colors,
@@ -520,6 +620,9 @@ export function generateClusteredBarOption(ctx: ChartGeneratorContext): echarts.
     grid,
     xAxis: isHorizontal ? valueAxisConfig : categoryAxisConfig,
     yAxis: isHorizontal ? categoryAxisConfig : valueAxisConfig,
-    series: seriesObjects
+    series: [
+      ...seriesObjects,
+      ...(errorBarSeries ? [errorBarSeries] : [])
+    ]
   };
 }

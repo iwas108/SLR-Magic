@@ -1,6 +1,7 @@
 /**
  * Pure color utility functions for scientific charts, auto-contrast text, and hierarchical branch shading.
  */
+import type { ThemePalette } from '../types';
 
 /**
  * Adjust color shade by a linear RGB factor.
@@ -543,5 +544,129 @@ export function hexToRgba(color: string, opacity: number): string {
   const b = num & 255;
   return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }
+
+/**
+ * Creates an elegant vertical linear gradient for bars, funnels, and columns.
+ */
+export function createVerticalGradient(color: string, opacityStart: number = 1, opacityEnd: number = 0.82): any {
+  return {
+    type: 'linear',
+    x: 0,
+    y: 0,
+    x2: 0,
+    y2: 1,
+    colorStops: [
+      { offset: 0, color: hexToRgba(color, opacityStart) },
+      { offset: 1, color: hexToRgba(color, opacityEnd) }
+    ]
+  };
+}
+
+/**
+ * Creates a horizontal linear gradient for horizontal bars and flow metrics.
+ */
+export function createHorizontalGradient(color: string, opacityStart: number = 1, opacityEnd: number = 0.82): any {
+  return {
+    type: 'linear',
+    x: 0,
+    y: 0,
+    x2: 1,
+    y2: 0,
+    colorStops: [
+      { offset: 0, color: hexToRgba(color, opacityStart) },
+      { offset: 1, color: hexToRgba(color, opacityEnd) }
+    ]
+  };
+}
+
+/**
+ * Creates an artistic radial gradient for matrix bubbles and circular nodes.
+ */
+export function createRadialGradient(color: string, innerOpacity: number = 0.95, outerOpacity: number = 0.72): any {
+  return {
+    type: 'radial',
+    x: 0.5,
+    y: 0.5,
+    r: 0.5,
+    colorStops: [
+      { offset: 0, color: hexToRgba(color, innerOpacity) },
+      { offset: 1, color: hexToRgba(color, outerOpacity) }
+    ]
+  };
+}
+
+/**
+ * Derives a continuous, multi-stop academic heat scale tailored directly to the active palette.
+ * Automatically respects explicit palette.heatScale, or generates a smooth 5-to-6 stop ramp.
+ */
+export function resolvePaletteHeatScale(palette?: ThemePalette): string[] {
+  if (palette?.heatScale && palette.heatScale.length >= 3) {
+    return palette.heatScale;
+  }
+  if (!palette || !palette.colors || palette.colors.length === 0) {
+    return ['#f0fdf4', '#bbf7d0', '#34d399', '#059669', '#064e3b'];
+  }
+  
+  const isDark = Boolean(palette.isDark || palette.bg === '#090d16' || palette.bg === '#0b0f19');
+  const baseTone = palette.colors[0];
+
+  if (isDark) {
+    return [
+      '#030712',
+      hexToRgba(baseTone, 0.35),
+      hexToRgba(baseTone, 0.65),
+      baseTone,
+      palette.accent || palette.colors[1] || '#38bdf8'
+    ];
+  }
+
+  // Light publication gradient
+  return [
+    palette.bg || '#ffffff',
+    adjustColorShade(baseTone, 0.65),
+    adjustColorShade(baseTone, 0.35),
+    baseTone,
+    adjustColorShade(baseTone, -0.15)
+  ];
+}
+
+/**
+ * Resolves the primary accent color from a palette with safe fallbacks.
+ */
+export function resolvePaletteAccent(palette?: ThemePalette, fallback: string = '#d97706'): string {
+  return palette?.accent || palette?.colors?.[1] || fallback;
+}
+
+/**
+ * Resolves the secondary complementary color from a palette with safe fallbacks.
+ */
+export function resolvePaletteSecondary(palette?: ThemePalette, fallback: string = '#0284c7'): string {
+  return palette?.secondary || palette?.colors?.[2] || palette?.colors?.[1] || fallback;
+}
+
+/**
+ * Resolves the harmonious grid line color from a palette with safe dark/light fallbacks.
+ */
+export function resolvePaletteGridLine(palette?: ThemePalette, fallback?: string): string {
+  if (fallback) return fallback;
+  if (palette?.gridLine) return palette.gridLine;
+  if (palette?.isDark || palette?.bg === '#090d16' || palette?.bg === '#0b0f19' || palette?.bg === '#030712') {
+    return 'rgba(255, 255, 255, 0.08)';
+  }
+  return '#f1f5f9';
+}
+
+/**
+ * Resolves the surface background color from a palette with safe dark/light fallbacks.
+ */
+export function resolvePaletteSurface(palette?: ThemePalette, fallback?: string): string {
+  if (fallback) return fallback;
+  if (palette?.surface) return palette.surface;
+  if (palette?.isDark || palette?.bg === '#090d16' || palette?.bg === '#0b0f19' || palette?.bg === '#030712') {
+    return '#111827';
+  }
+  return '#ffffff';
+}
+
 
 

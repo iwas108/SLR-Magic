@@ -30,10 +30,13 @@ pdf_library/
 app.db
 slr.db
 /slr-ide/db/*.db
+/slr-ide/db/*.db**
 /slr-ide/db/*.db-shm
 /slr-ide/db/*.db-wal
 /slr-ide/db/*.sqlite
+/slr-ide/db/*.sqlite**
 /slr-ide/db/*.bak
+/slr-ide/db/*.bak**
 /slr-ide/db/*.json
 
 # Environment Files & Configurations

@@ -9,11 +9,13 @@ import {
   BarChart2, 
   Search, 
   Filter, 
-  Sparkles 
+  Sparkles,
+  Eye
 } from 'lucide-react';
 import ClickableCell from './ClickableCell';
 import VisualizerModal from './VisualizerModal';
 import LlmContextBuilderModal from './LlmContextBuilderModal';
+import CohortPaperDetailsModal from './CohortPaperDetailsModal';
 import { extractMappingReasoning, extractEvidenceQuote } from '@/lib/services/trace-normalizer';
 import {
   resolveUmbrellanizerValue as centralResolveUmbrellanizerValue,
@@ -22,6 +24,7 @@ import {
   getStageDominantQualityAssessmentStr
 } from '@/lib/services/taxonomy-resolver';
 import { useViewerData } from '@/context/ViewerContext';
+import StorageService from '../../StorageService';
 
 const DEFAULT_WIDTHS: Record<string, number> = {
   Paper_ID: 70,
@@ -50,7 +53,7 @@ export default function FinalCohortPanel() {
     isVisualizerOpen: globalIsVisualizerOpen,
     setIsVisualizerOpen: globalSetIsVisualizerOpen
   } = useViewerData();
-  const projectId = String(activeSession?.id || 'viewer-project');
+  const projectId = String(activeSession?.rawData?.project?.id || activeSession?.id || 'viewer-project');
 
   // Read data from the offline session snapshot directly
   const allPapers: any[] = useMemo(() => activeSession?.rawData?.final_cohort?.papers || [], [activeSession]);
@@ -75,6 +78,7 @@ export default function FinalCohortPanel() {
   const isVisualizerOpen = globalIsVisualizerOpen !== undefined ? globalIsVisualizerOpen : internalIsVisualizerOpen;
   const setIsVisualizerOpen = globalSetIsVisualizerOpen || setInternalIsVisualizerOpen;
   const [selectedPaperId, setSelectedPaperId] = useState<string | null>(null);
+  const [isInspectionModalOpen, setIsInspectionModalOpen] = useState(false);
   const [isLlmContextBuilderOpen, setIsLlmContextBuilderOpen] = useState(false);
 
   // Column Width Resizing State
@@ -497,6 +501,66 @@ export default function FinalCohortPanel() {
     return sortedPapers.slice(offset, offset + limit);
   }, [sortedPapers, page, limit]);
 
+  const selectedPaperIndex = useMemo(() => {
+    if (!selectedPaperId) return -1;
+    return sortedPapers.findIndex((p) => String(p.Paper_ID) === String(selectedPaperId));
+  }, [selectedPaperId, sortedPapers]);
+
+  const selectedPaper = useMemo(() => {
+    if (selectedPaperIndex === -1) return null;
+    return sortedPapers[selectedPaperIndex];
+  }, [selectedPaperIndex, sortedPapers]);
+
+  const handleNavigatePaper = useCallback((direction: 'prev' | 'next') => {
+    if (selectedPaperIndex === -1 || sortedPapers.length === 0) return;
+    if (direction === 'prev') {
+      if (selectedPaperIndex > 0) {
+        setSelectedPaperId(sortedPapers[selectedPaperIndex - 1].Paper_ID);
+      }
+    } else {
+      if (selectedPaperIndex < sortedPapers.length - 1) {
+        setSelectedPaperId(sortedPapers[selectedPaperIndex + 1].Paper_ID);
+      }
+    }
+  }, [selectedPaperIndex, sortedPapers]);
+
+  // Handle saving customized charts to IndexedDB in Viewer mode
+  const handleViewerSaveChart = useCallback(async (newChart: any) => {
+    if (!activeSession?.id || !activeSession?.rawData) return;
+    try {
+      const existingCharts = Array.isArray(activeSession.rawData.saved_charts) ? [...activeSession.rawData.saved_charts] : [];
+      const idx = existingCharts.findIndex((c: any) => c.id === newChart.id);
+      if (idx >= 0) {
+        existingCharts[idx] = newChart;
+      } else {
+        existingCharts.unshift(newChart);
+      }
+      const nextRawData = {
+        ...activeSession.rawData,
+        saved_charts: existingCharts
+      };
+      await StorageService.updateSession(activeSession.id, nextRawData);
+    } catch (e) {
+      console.error('Failed to persist viewer saved chart to IndexedDB:', e);
+    }
+  }, [activeSession]);
+
+  // Handle deleting customized charts from IndexedDB in Viewer mode
+  const handleViewerDeleteChart = useCallback(async (chartId: string) => {
+    if (!activeSession?.id || !activeSession?.rawData) return;
+    try {
+      const existingCharts = Array.isArray(activeSession.rawData.saved_charts) ? [...activeSession.rawData.saved_charts] : [];
+      const nextCharts = existingCharts.filter((c: any) => c.id !== chartId);
+      const nextRawData = {
+        ...activeSession.rawData,
+        saved_charts: nextCharts
+      };
+      await StorageService.updateSession(activeSession.id, nextRawData);
+    } catch (e) {
+      console.error('Failed to remove viewer saved chart from IndexedDB:', e);
+    }
+  }, [activeSession]);
+
   useEffect(() => {
     setPage(1);
   }, [searchTerm, minQaScore, maxQaScore, selectedExtractedFilters, pdfFilter, sourceFilter, doiStatusFilter, pdfLinkFilter, yearFilter, publisherFilter]);
@@ -812,6 +876,16 @@ export default function FinalCohortPanel() {
               {filteredPapers.length} / {allPapers.length} papers
             </span>
           </div>
+          {selectedPaper && (
+            <button
+              onClick={() => setIsInspectionModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
+              title="Open Fullscreen Paper Inspection"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>Inspect Paper: <strong className="font-mono">{selectedPaper.Paper_ID}</strong></span>
+            </button>
+          )}
         </div>
 
         {sortedPapers.length === 0 ? (
@@ -1004,6 +1078,10 @@ export default function FinalCohortPanel() {
                       <tr 
                         key={p.Paper_ID} 
                         onClick={() => setSelectedPaperId(p.Paper_ID)}
+                        onDoubleClick={() => {
+                          setSelectedPaperId(p.Paper_ID);
+                          setIsInspectionModalOpen(true);
+                        }}
                         className={`transition-colors group cursor-pointer ${
                           isSelected 
                             ? 'bg-primary/15 dark:bg-primary/25 border-l-2 border-l-primary font-medium' 
@@ -1014,15 +1092,44 @@ export default function FinalCohortPanel() {
                           className="p-2 border-b border-border/50"
                           style={{ width: getColWidth('Paper_ID'), minWidth: getColWidth('Paper_ID'), maxWidth: getColWidth('Paper_ID') }}
                         >
-                          <ClickableCell valueToCopy={p.Paper_ID} className="font-bold text-muted-foreground font-mono text-[10px]">
-                            {p.Paper_ID}
-                          </ClickableCell>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedPaperId(p.Paper_ID);
+                                setIsInspectionModalOpen(true);
+                              }}
+                              title="Inspect Full Paper Details & Cloud PDF"
+                              className="p-1 rounded hover:bg-primary/20 text-muted-foreground hover:text-primary transition-colors shrink-0"
+                            >
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                            <ClickableCell 
+                              valueToCopy={p.Paper_ID} 
+                              className="font-bold text-muted-foreground font-mono text-[10px]"
+                              onClick={() => {
+                                setSelectedPaperId(p.Paper_ID);
+                                setIsInspectionModalOpen(true);
+                              }}
+                            >
+                              {p.Paper_ID}
+                            </ClickableCell>
+                          </div>
                         </td>
                         <td 
                           className="p-2 border-b border-border/50"
                           style={{ width: getColWidth('Title'), minWidth: getColWidth('Title'), maxWidth: getColWidth('Title') }}
                         >
-                          <ClickableCell valueToCopy={p.Title} className="font-semibold text-foreground text-[10px]" title={p.Title}>
+                          <ClickableCell 
+                            valueToCopy={p.Title} 
+                            className="font-semibold text-foreground text-[10px]" 
+                            title={p.Title}
+                            onClick={() => {
+                              setSelectedPaperId(p.Paper_ID);
+                              setIsInspectionModalOpen(true);
+                            }}
+                          >
                             {p.Title}
                           </ClickableCell>
                         </td>
@@ -1225,9 +1332,15 @@ export default function FinalCohortPanel() {
         isOpen={isVisualizerOpen}
         onClose={() => setIsVisualizerOpen(false)}
         papers={filteredPapers}
+        allCohortPapers={allPapers}
+        projectId={projectId}
         totalUnfilteredCount={allPapers.length}
         isFiltered={filteredPapers.length < allPapers.length}
         umbrellanizerMap={umbrellanizerMap}
+        isViewerMode={true}
+        savedCharts={activeSession?.rawData?.saved_charts || []}
+        onViewerSaveChart={handleViewerSaveChart}
+        onViewerDeleteChart={handleViewerDeleteChart}
       />
 
       <LlmContextBuilderModal
@@ -1238,6 +1351,19 @@ export default function FinalCohortPanel() {
         umbrellanizerMap={umbrellanizerMap}
         projectId={projectId}
         showToast={showToast}
+      />
+
+      <CohortPaperDetailsModal
+        isOpen={isInspectionModalOpen}
+        onClose={() => setIsInspectionModalOpen(false)}
+        paper={selectedPaper}
+        currentIndex={selectedPaperIndex >= 0 ? selectedPaperIndex + 1 : 0}
+        totalCount={sortedPapers.length}
+        hasPrev={selectedPaperIndex > 0}
+        hasNext={selectedPaperIndex >= 0 && selectedPaperIndex < sortedPapers.length - 1}
+        onNavigate={handleNavigatePaper}
+        umbrellanizerMap={umbrellanizerMap}
+        mode="viewer"
       />
     </div>
   );

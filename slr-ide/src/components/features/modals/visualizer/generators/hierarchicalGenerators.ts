@@ -608,7 +608,7 @@ export function generateTreemapOption(ctx: ChartGeneratorContext): echarts.EChar
     const treemapLeft = ctx.gridMarginLeft !== undefined ? ctx.gridMarginLeft : defaultTreemapLeft;
     const treemapRight = ctx.gridMarginRight !== undefined ? ctx.gridMarginRight : defaultTreemapRight;
 
-    const isDark = palette.bg === '#0f172a' || palette.bg === '#1e293b' || palette.bg === '#000000';
+    const isDark = Boolean(palette.isDark || palette.bg === '#0f172a' || palette.bg === '#1e293b' || palette.bg === '#000000' || palette.bg === '#090d16' || palette.bg === '#0b0f19' || palette.bg === '#030712');
     const resolveBorderColor = (colorMode?: string, customColor?: string) => {
       if (colorMode === 'transparent') return 'transparent';
       if (colorMode === 'contrast') return isDark ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.18)';
@@ -791,11 +791,11 @@ export function generateTreemapOption(ctx: ChartGeneratorContext): echarts.EChar
       emptyItemWidth: 28,
       itemStyle: {
         color: isDark ? 'rgba(30, 41, 59, 0.92)' : 'rgba(241, 245, 249, 0.95)',
-        borderColor: isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.18)',
+        borderColor: palette.border || (isDark ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.18)'),
         borderWidth: 1,
         borderRadius: 4,
         textStyle: {
-          color: isDark ? '#ffffff' : '#0f172a',
+          color: palette.text || (isDark ? '#ffffff' : '#0f172a'),
           fontFamily: font,
           fontSize: 11,
           fontWeight: 'bold'
@@ -803,7 +803,7 @@ export function generateTreemapOption(ctx: ChartGeneratorContext): echarts.EChar
       },
       emphasis: {
         itemStyle: {
-          color: palette.colors[0] || '#3b82f6',
+          color: palette.accent || palette.colors[0] || '#3b82f6',
           textStyle: {
             color: '#ffffff'
           }
@@ -1706,7 +1706,9 @@ export function generateSankeyOption(ctx: ChartGeneratorContext): echarts.EChart
         color,
         borderColor: palette.bg,
         borderWidth: sankeyNodeBorderWidth,
-        borderRadius: sankeyNodeBorderRadius
+        borderRadius: sankeyNodeBorderRadius,
+        shadowBlur: 2,
+        shadowColor: 'rgba(0, 0, 0, 0.08)'
       },
       label: labelObj
     };
@@ -1830,7 +1832,14 @@ export function generateSankeyOption(ctx: ChartGeneratorContext): echarts.EChart
       levels: levels,
       data: nodes,
       links: links,
-      emphasis: { focus: sankeyEmphasisFocus },
+      emphasis: { 
+        focus: sankeyEmphasisFocus,
+        itemStyle: {
+          shadowBlur: 10,
+          shadowColor: 'rgba(0, 0, 0, 0.25)',
+          borderColor: palette.accent || palette.colors[0] || palette.border
+        }
+      },
       lineStyle: {
         color: resolvedLinkColor,
         curveness: sankeyCurveness,
@@ -2355,10 +2364,14 @@ export function generateSunburstOption(ctx: ChartGeneratorContext): echarts.ECha
         sort: sunburstSort === 'none' ? undefined : sunburstSort,
         nodeClick: sunburstNodeClick === 'none' ? false : sunburstNodeClick,
         emphasis: {
-          focus: sunburstEmphasisFocus === 'none' ? undefined : sunburstEmphasisFocus
+          focus: sunburstEmphasisFocus === 'none' ? undefined : sunburstEmphasisFocus,
+          itemStyle: {
+            shadowBlur: 10,
+            shadowColor: 'rgba(0, 0, 0, 0.25)'
+          }
         },
         levels,
-        itemStyle: { borderRadius: 3, borderWidth: 1, borderColor: palette.bg }
+        itemStyle: { borderRadius: 3, borderWidth: 2, borderColor: palette.bg }
       },
       ...(showLegend ? [{
         type: 'pie' as const,

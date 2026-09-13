@@ -54,7 +54,7 @@ export async function GET(request: Request) {
         p.manual_quality_assessment,
         COALESCE(lsr_min.extracted_data, p.ai_extracted_data) as ai_extracted_data,
         p.manual_extracted_data,
-        p.Local_PDF_Status, p.Import_Source, p.DOI, p.PDF_Link,
+        p.Local_PDF_Status, p.Local_PDF_Path, p.Import_Source, p.DOI, p.PDF_Link,
         p.Publisher, p.Original_Publisher, p.citation_count,
         p.ai_stage, p.manual_stage,
         lsr_sci.logic_trace as scientist_logic_trace,

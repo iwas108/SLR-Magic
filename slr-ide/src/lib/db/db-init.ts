@@ -400,6 +400,23 @@ export function initializeDatabase(db: Database.Database): void {
 
     CREATE INDEX IF NOT EXISTS idx_umbrellanizer_project ON umbrellanizer_results(project_id);
 
+    -- Centralized FAIR Saved Charts Table
+    CREATE TABLE IF NOT EXISTS saved_charts (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT,
+      chart_type TEXT NOT NULL,
+      layout_mode TEXT NOT NULL DEFAULT 'single',
+      config_payload TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_saved_charts_project ON saved_charts(project_id);
+    CREATE INDEX IF NOT EXISTS idx_saved_charts_type ON saved_charts(chart_type);
+
     -- Rolling Review Batches
     CREATE TABLE IF NOT EXISTS rolling_batches (
       id TEXT PRIMARY KEY,

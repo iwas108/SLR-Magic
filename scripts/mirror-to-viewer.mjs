@@ -86,6 +86,10 @@ copyFile(
   path.join(ideDir, 'src/lib/inter-rater/adjudication-calculations.ts'),
   path.join(viewerDir, 'src/lib/inter-rater/adjudication-calculations.ts')
 );
+copyFile(
+  path.join(ideDir, 'src/lib/sync-utils.ts'),
+  path.join(viewerDir, 'src/lib/sync-utils.ts')
+);
 
 // 2. Mirror Types
 console.log('\n[2/5] Mirroring Types...');
@@ -130,6 +134,10 @@ copyFile(
 copyFile(
   path.join(ideDir, 'src/components/features/pre-calibration/AdjudicationInspectionModal.tsx'),
   path.join(viewerDir, 'src/components/scientific-rigor/AdjudicationInspectionModal.tsx')
+);
+copyFile(
+  path.join(ideDir, 'src/components/features/insight-export/CohortPaperDetailsModal.tsx'),
+  path.join(viewerDir, 'src/components/final-cohort/CohortPaperDetailsModal.tsx')
 );
 
 // 5. Mirror Presentation Panels

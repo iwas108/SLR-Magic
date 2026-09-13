@@ -131,6 +131,7 @@ export function validateViewerSnapshot(rawPayload: any): any {
     schema_version: detectedVersion,
     type: 'slr-viewer-export',
     export_date: rawPayload.export_date || new Date().toISOString(),
+    saved_charts: Array.isArray(rawPayload.saved_charts) ? rawPayload.saved_charts : [],
     project: {
       ...project,
       name: project.name || 'Untitled Project',

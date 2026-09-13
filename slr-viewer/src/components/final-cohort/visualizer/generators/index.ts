@@ -163,6 +163,18 @@ export interface BuildChartOptionParams {
   axisTitleLocationY?: AxisLocation;
   axisTitleGapX?: number;
   axisTitleGapY?: number;
+  axisTitleRotateX?: number;
+  axisTitleRotateY?: number;
+  axisTitleAlignX?: 'left' | 'center' | 'right';
+  axisTitleAlignY?: 'left' | 'center' | 'right';
+  axisTitleOffsetX_X?: number;
+  axisTitleOffsetY_X?: number;
+  axisTitleOffsetX_Y?: number;
+  axisTitleOffsetY_Y?: number;
+  axisTitlePrefixX?: string;
+  axisTitleSuffixX?: string;
+  axisTitlePrefixY?: string;
+  axisTitleSuffixY?: string;
   showAxisLabelX?: boolean;
   showAxisLabelY?: boolean;
   axisLabelFontSizeX?: number;
@@ -320,6 +332,9 @@ export interface BuildChartOptionParams {
   roseType?: 'none' | 'radius' | 'area';
   piePadAngle?: number;
   pieCornerRadius?: number;
+  pieSort?: 'desc' | 'asc' | 'none';
+  pieStartAngle?: number;
+  pieMinAngle?: number;
   treemapAlgorithm?: 'squarified' | 'sliceAndDice' | 'binary';
   treemapSquareRatio?: number;
   treemapVisibleDepth?: number;
@@ -409,9 +424,13 @@ export interface BuildChartOptionParams {
   funnelGap?: number;
   funnelNeckWidth?: number;
   funnelNeckHeight?: number;
+  funnelLabelPosition?: 'inside' | 'outside' | 'left' | 'right';
+  funnelSort?: 'descending' | 'ascending' | 'none';
   boxplotBoxWidth?: number;
   boxplotShowScatter?: boolean;
   boxplotOrientation?: 'vertical' | 'horizontal';
+  boxplotFillColor?: string;
+  boxplotBorderColor?: string;
   scatterPointSize?: number;
   scatterPointOpacity?: number;
   scatterShowRegression?: boolean;
@@ -449,12 +468,17 @@ export interface BuildChartOptionParams {
   graphGravity?: number;
   graphCurveness?: number;
   graphShowLinkWeights?: boolean;
+  graphNodeSize?: number;
+  graphDraggable?: boolean;
   gaugeStartAngle?: number;
   gaugeEndAngle?: number;
   gaugePointerWidth?: number;
   gaugeDialWidth?: number;
+  gaugeUnit?: string;
+  gaugeSplitNumber?: number;
   calendarCellSize?: number;
   calendarYear?: string;
+  calendarColorPreset?: 'academic' | 'viridis' | 'plasma' | 'thermal' | 'coolwarm';
   stackedNormalized?: boolean;
   stackedReverseOrder?: boolean;
   stackedPerBarSorting?: 'none' | 'desc' | 'asc';
@@ -634,7 +658,7 @@ export function buildChartOption(params: BuildChartOptionParams): echarts.EChart
 
   const baseTooltip = {
     trigger: 'item' as const,
-    backgroundColor: palette.bg,
+    backgroundColor: palette.surface || palette.bg,
     borderColor: palette.border,
     textStyle: { fontFamily: font, fontSize: fontSize - 1, color: palette.text }
   };

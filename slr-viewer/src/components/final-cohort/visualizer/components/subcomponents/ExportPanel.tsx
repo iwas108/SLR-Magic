@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   Download, 
   Compass, 
@@ -18,22 +18,23 @@ import {
   Crosshair,
   FileCode,
   Save,
-  Upload
+  Upload,
+  Database
 } from 'lucide-react';
 import { SLOT_METADATA } from '../../constants/layoutPresets';
 import { CHART_TYPES_INFO } from '../../constants/chartTypes';
 import { useVisualizerContext } from '../../context/VisualizerContext';
 import { resolveTargetDimensions } from '../../utils/exportUtils';
 import type { CanvasBackdrop, AspectRatioPreset, DimensionUnit, FittingAnchor } from '../../types';
+import { ChartLibraryModal } from './ChartLibraryModal';
 
 interface ExportPanelProps {
   onBackToCustomize?: () => void;
 }
 
 export function ExportPanel({ onBackToCustomize }: ExportPanelProps = {}) {
-  const { layout, config, style, camera, canvas, workspace, presets } = useVisualizerContext();
-  const { handleExportPreset, handleImportPreset } = presets;
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { props, layout, config, style, camera, canvas, workspace, presets } = useVisualizerContext();
+  const [isChartLibraryOpen, setIsChartLibraryOpen] = useState(false);
   const { layoutMode, activeSlot, activeSlotsList } = layout;
   const { slotsConfig, setCurrentStep } = config;
   const {
@@ -456,49 +457,29 @@ export function ExportPanel({ onBackToCustomize }: ExportPanelProps = {}) {
         </div>
       </div>
 
-      {/* 5. Customization State & Preset Storage (.json) */}
+      {/* 5. Centralized FAIR Database Chart Library */}
       <div className="space-y-2.5 p-3.5 bg-card border border-border rounded-xl shadow-sm">
         <div className="flex items-center justify-between">
           <div className="space-y-0.5">
             <span className="text-xs font-bold text-foreground flex items-center gap-1.5">
-              <FileCode className="w-3.5 h-3.5 text-primary" />
-              Preset & Customization State (.json)
+              <Database className="w-3.5 h-3.5 text-primary" />
+              Project Chart Library (FAIR Storage)
             </span>
             <p className="text-[10px] text-muted-foreground">
-              Save or load your complete visualizer settings, fine-tuning, and layout directly.
+              Save and manage reproducible charts in the centralized project database.
             </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 pt-1">
-          <button
-            type="button"
-            onClick={handleExportPreset}
-            className="py-2.5 px-3 bg-secondary/70 hover:bg-secondary text-foreground hover:text-primary border border-border rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-xs active:scale-[0.98]"
-            title="Export visualizer customizations and layout as a reusable .json preset file"
-          >
-            <Save className="w-3.5 h-3.5 text-primary" />
-            <span>Export .JSON</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="py-2.5 px-3 bg-secondary/70 hover:bg-secondary text-foreground hover:text-primary border border-border rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-xs active:scale-[0.98]"
-            title="Import and apply a previously saved .json preset file"
-          >
-            <Upload className="w-3.5 h-3.5 text-primary" />
-            <span>Import .JSON</span>
-          </button>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json,application/json"
-            onChange={handleImportPreset}
-            className="hidden"
-          />
-        </div>
+        <button
+          type="button"
+          onClick={() => setIsChartLibraryOpen(true)}
+          className="w-full py-2.5 px-3 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-xs active:scale-[0.98] cursor-pointer"
+          title="Open Centralized FAIR Project Chart Library (Saved Database Charts & Legacy Import)"
+        >
+          <Database className="w-3.5 h-3.5" />
+          <span>Open Chart Library & Saved Presets</span>
+        </button>
       </div>
 
       {/* 6. Export Format & DPI Resolution */}
@@ -596,6 +577,17 @@ export function ExportPanel({ onBackToCustomize }: ExportPanelProps = {}) {
               Download {activeSlotMeta.name} Only
             </button>
           )}
+
+          {/* Centralized FAIR Chart Library Button */}
+          <button
+            type="button"
+            onClick={() => setIsChartLibraryOpen(true)}
+            className="w-full py-2.5 bg-secondary/70 hover:bg-secondary text-foreground border border-border rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors"
+            title="Save or Load Charts from Centralized FAIR Library"
+          >
+            <Database className="w-3.5 h-3.5 text-primary" />
+            <span>Open FAIR Chart Library</span>
+          </button>
         </div>
       </div>
 
@@ -625,6 +617,21 @@ export function ExportPanel({ onBackToCustomize }: ExportPanelProps = {}) {
           Back to Customize
         </button>
       </div>
+
+      {/* Centralized FAIR Project Chart Library Modal */}
+      {isChartLibraryOpen && (
+        <ChartLibraryModal
+          isOpen={isChartLibraryOpen}
+          onClose={() => setIsChartLibraryOpen(false)}
+          projectId={String(props.projectId || '')}
+          currentPresetPayload={presets.getCurrentPresetPayload ? presets.getCurrentPresetPayload() : { version: '3.0', exportedAt: new Date().toISOString(), layoutMode: 'single', slots: {} as any }}
+          onLoadPreset={presets.loadPresetPayload}
+          isViewerMode={props.isViewerMode}
+          viewerSavedCharts={props.savedCharts}
+          onViewerSaveChart={props.onViewerSaveChart}
+          onViewerDeleteChart={props.onViewerDeleteChart}
+        />
+      )}
     </div>
   );
 }

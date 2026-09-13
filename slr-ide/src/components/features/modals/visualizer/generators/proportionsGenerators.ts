@@ -70,7 +70,7 @@ export function generatePieDonutOption(ctx: ChartGeneratorContext): echarts.ECha
   const entries = Array.from(activeCountsMap.entries());
   const entryValues = entries.map(([cat, pList]) => {
     const realVal = computeMetricValue(pList, metricMode, papers.length, totalExtractedTags);
-    const manualVal = manualCategoryValues[cat];
+    const manualVal = (manualCategoryValues || {})[cat];
     return (enableManualOverrides && manualVal !== undefined) ? manualVal : realVal;
   });
   const maxVal = Math.max(...entryValues, 1);
@@ -82,7 +82,7 @@ export function generatePieDonutOption(ctx: ChartGeneratorContext): echarts.ECha
     const uniquePaperIds = new Set(pList.map(p => p.Paper_ID || p.id || p.title || p.Title || p));
     const paperCount = uniquePaperIds.size;
     const val = entryValues[idx];
-    const color = customSliceColors[cat] || getNodeColor(
+    const color = (customSliceColors || {})[cat] || getNodeColor(
       cat, 
       undefined, 
       idx, 
@@ -118,12 +118,20 @@ export function generatePieDonutOption(ctx: ChartGeneratorContext): echarts.ECha
         color, 
         borderRadius: ctx.pieCornerRadius ?? 4, 
         borderColor: palette.bg, 
-        borderWidth: 2 
+        borderWidth: 2.5 
       }
     };
   }).filter(d => d.value > 0);
 
-  const pieDataMap = new Map(pieData.map(d => [d.name, d]));
+  const pieSort = ctx.pieSort || 'desc';
+  let processedPieData = pieData;
+  if (pieSort === 'desc') {
+    processedPieData = [...pieData].sort((a, b) => b.value - a.value);
+  } else if (pieSort === 'asc') {
+    processedPieData = [...pieData].sort((a, b) => a.value - b.value);
+  }
+
+  const pieDataMap = new Map(processedPieData.map(d => [d.name, d]));
 
   // Dynamic collision-free geometry & centering calculation
   let defaultCenterX = 50;
@@ -257,12 +265,23 @@ export function generatePieDonutOption(ctx: ChartGeneratorContext): echarts.ECha
     series: [{
       name: primaryField,
       type: 'pie',
+      startAngle: ctx.pieStartAngle ?? 90,
+      minAngle: ctx.pieMinAngle ?? 0,
       roseType: (ctx.roseType && ctx.roseType !== 'none') ? ctx.roseType : undefined,
       padAngle: ctx.piePadAngle ?? 2,
       radius: radiusRange,
       center: [centerX, centerY],
-      data: pieData,
+      data: processedPieData,
       avoidLabelOverlap: true,
+      emphasis: {
+        scale: true,
+        scaleSize: 6,
+        itemStyle: {
+          shadowBlur: 14,
+          shadowOffsetX: 0,
+          shadowColor: 'rgba(0, 0, 0, 0.22)'
+        }
+      },
       labelLayout: {
         hideOverlap: true,
         moveOverlap: 'shiftY'

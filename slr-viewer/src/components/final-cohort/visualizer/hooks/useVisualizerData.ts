@@ -382,6 +382,7 @@ export function useVisualizerData(params: {
   }, [papers]);
 
   return {
+    papers,
     customCategoryMap,
     setCustomCategoryMap,
     enableManualOverrides,

@@ -394,14 +394,42 @@ export function extractPaperFieldValues(
     realKey = fieldKey.substring(4);
   }
 
-  if (realKey) {
-    const extStr = getStageDominantExtractedDataStr(paper);
-    if (!extStr) return excludeEmpty ? [] : ['Unspecified'];
-
+  // Pre-parse stage-dominant extracted data to allow candidate bare key discovery
+  const extStr = getStageDominantExtractedDataStr(paper);
+  let parsedExtObj: any = null;
+  if (extStr) {
     try {
       const parsed = typeof extStr === 'string' ? JSON.parse(extStr) : extStr;
-      const extObj = parsed.extracted_data || parsed;
-      let rawVal = extObj[realKey];
+      parsedExtObj = (typeof parsed === 'object' && parsed !== null) ? (parsed.extracted_data || parsed) : null;
+    } catch (e) {}
+  }
+
+  let targetExtKey = realKey;
+  if (!targetExtKey && parsedExtObj && typeof parsedExtObj === 'object') {
+    const candidateKeys = [
+      fieldKey,
+      fieldKey.replace(/^ext:/, ''),
+      fieldKey.replace(/ /g, '_'),
+      fieldKey.replace(/_/g, ' ')
+    ];
+    for (const cand of candidateKeys) {
+      if (parsedExtObj[cand] !== undefined) {
+        targetExtKey = cand;
+        break;
+      }
+    }
+    if (!targetExtKey) {
+      const normField = normalizeForLookup(fieldKey.replace(/^ext:/, ''));
+      const matchedKey = Object.keys(parsedExtObj).find(k => normalizeForLookup(k) === normField);
+      if (matchedKey) {
+        targetExtKey = matchedKey;
+      }
+    }
+  }
+
+  if (targetExtKey && parsedExtObj) {
+    try {
+      let rawVal = parsedExtObj[targetExtKey];
 
       if (rawVal === undefined || rawVal === null || rawVal === '') {
         return excludeEmpty ? [] : ['Unspecified'];
@@ -411,7 +439,7 @@ export function extractPaperFieldValues(
         rawVal = rawVal.value;
       }
 
-      const tokens = normalizeExtractedTokens(rawVal, realKey);
+      const tokens = normalizeExtractedTokens(rawVal, targetExtKey);
       if (tokens.length === 0) {
         return excludeEmpty ? [] : ['Unspecified'];
       }
@@ -424,7 +452,7 @@ export function extractPaperFieldValues(
           }
           return t;
         }
-        const resolved = resolveUmbrellanizerValue(t, realKey, useUmbrellanizer, umbrellanizerMap);
+        const resolved = resolveUmbrellanizerValue(t, targetExtKey, useUmbrellanizer, umbrellanizerMap);
         if (!resolved) return t;
         if (isMacro) {
           const colonIdx = resolved.indexOf(':');

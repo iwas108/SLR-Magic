@@ -60,7 +60,7 @@ export function generateLineOption(ctx: ChartGeneratorContext): echarts.EChartsO
     // Dynamic Academic Color Palette Resolution (falls back to palette theme colors!)
     const defaultColor1 = palette.colors[0] || '#2E7D32';
     const defaultColor2 = palette.colors[1] || '#00838F';
-    const defaultColor3 = palette.colors[2] || palette.text || '#292b2c';
+    const defaultColor3 = palette.accent || palette.colors[2] || palette.text || '#292b2c';
 
     const baselineColor = (ctx.lineBaselineColor && ctx.lineBaselineColor.trim() !== '') ? ctx.lineBaselineColor : defaultColor1;
     const estimatorColor = (ctx.lineEstimatorColor && ctx.lineEstimatorColor.trim() !== '') ? ctx.lineEstimatorColor : defaultColor2;
@@ -112,7 +112,7 @@ export function generateLineOption(ctx: ChartGeneratorContext): echarts.EChartsO
     const txSeriesName = ctx.lineTxEventSeriesName || 'Physical Radio TX Events';
     const txColor = (ctx.lineTxEventColor && ctx.lineTxEventColor.trim() !== '') 
       ? ctx.lineTxEventColor 
-      : (palette.colors[2] || '#d9534f');
+      : (palette.accent || palette.colors[2] || '#d9534f');
     const txSymbol = ctx.lineTxEventSymbol || 'triangle';
     const txSize = ctx.lineTxEventSize ?? 12;
     const showTxLabels = ctx.lineShowTxLabels !== false;
@@ -473,7 +473,22 @@ export function generateLineOption(ctx: ChartGeneratorContext): echarts.EChartsO
       step: (ctx.lineStepMode && ctx.lineStepMode !== 'none') ? ctx.lineStepMode : undefined,
       data: lineData,
       showSymbol: ctx.showLineMarkers ?? true,
+      symbol: ctx.lineMarkerSymbol || 'circle',
       symbolSize: ctx.lineMarkerSize ?? 8,
+      itemStyle: {
+        color: palette.colors[0] || '#3b82f6',
+        borderColor: palette.bg,
+        borderWidth: 2,
+        shadowBlur: 4,
+        shadowColor: hexToRgba(palette.colors[0] || '#3b82f6', 0.4)
+      },
+      emphasis: {
+        scale: 1.35,
+        itemStyle: {
+          shadowBlur: 10,
+          shadowColor: hexToRgba(palette.colors[0] || '#3b82f6', 0.6)
+        }
+      },
       lineStyle: {
         width: ctx.lineWidth ?? 2.5
       },
@@ -499,7 +514,21 @@ export function generateLineOption(ctx: ChartGeneratorContext): echarts.EChartsO
           return params.data?.formattedLabel ?? params.value;
         }
       },
-      areaStyle: (ctx.lineAreaOpacity && ctx.lineAreaOpacity > 0) ? { opacity: ctx.lineAreaOpacity / 100 } : undefined
+      areaStyle: (ctx.lineAreaOpacity !== undefined && ctx.lineAreaOpacity === 0)
+        ? undefined
+        : {
+            color: {
+              type: 'linear',
+              x: 0,
+              y: 0,
+              x2: 0,
+              y2: 1,
+              colorStops: [
+                { offset: 0, color: hexToRgba(palette.colors[0] || '#3b82f6', (ctx.lineAreaOpacity ?? 20) / 100) },
+                { offset: 1, color: hexToRgba(palette.colors[0] || '#3b82f6', 0.01) }
+              ]
+            }
+          }
     }]
   };
 }
