@@ -1,3 +1,40 @@
+## #573 - Complete Deprecation & Removal of Legacy app-script, Dynamic Live Port Discovery, and GitHub Pages Static Route Resolution (2026-09-15)
+- **Goal**: Entirely remove the legacy `app-script/` module (Google Apps Script) and its workspace references, implement dynamic live port discovery via Next.js `/api/network-info` to automatically bind user-configured runtime ports, and support GitHub Pages static route resolution for hosted SPAs.
+- **Architectural Implementation**:
+  1. **app-script Module Deprecation & Cleanup**:
+     - Removed `app-script/` directory entirely (29 files) from version control.
+     - Updated workspace directives (`AGENTS.md`), root architecture (`architecture.md`), and `README.md` to establish `slr-ide`, `inter-rater`, and `slr-viewer` as the 3 active platform modules.
+     - Redirected FAIR compliance sink from Google Sheets to direct open science repositories (Zenodo, OSF, Dataverse) via RFC 4180 CSV and structured JSON.
+     - Removed `app-script` tab button and configurations from `index.html`.
+  2. **Ecosystem Registry Dynamic Domain & Static Route Resolution (`src/lib/services/ecosystem-data.ts`)**:
+     - Removed `app-script` from `EcosystemModule['id']` and module definitions.
+     - Updated `resolveModuleUrl(defaultPort, moduleId, fallbackPath)` to dynamically detect GitHub Pages (`*.github.io`) and cloud hosting (`*.pages.dev`), routing to static sub-paths (`/SLR-Magic/<module>/dist/`) while preserving local/LAN IP and custom port resolution.
+  3. **Live Port Discovery Integration (`src/components/features/modals/EcosystemModal.tsx`)**:
+     - Added live `/api/network-info` query upon modal mount to retrieve `effectivePort` dynamically, ensuring custom development ports (`npm run dev -- -p 3005`) are accurately reflected.
+- **Verification**: Verified with `npx tsc --noEmit` (0 errors) and production build.
+
+## #572 - SLR Magic Architecture & Ecosystem Hub Navigation Across All Submodules (2026-09-15)
+- **Goal**: Implement a unified, cross-module Ecosystem Hub allowing users and researchers to explore the complete SLR Magic local-first ecosystem, understand the distinct purpose and technical capabilities of each sub-module (`slr-ide`, `inter-rater`, `slr-viewer`, `worker-server`), trace the 5-step data exchange lifecycle, inspect offline file specifications (.slr, .slr-viewer, .csv, .bib), and launch or copy URLs to peer applications.
+- **Architectural Implementation**:
+  1. **Ecosystem Registry & Domain Service (`src/lib/services/ecosystem-data.ts`)**:
+     - Defined comprehensive metadata for all 5 sub-modules (`ECOSYSTEM_MODULES`): roles, technical stacks, capabilities, IO contracts, default ports, and badge variants.
+     - Documented the 5-step systematic literature review data flow lifecycle (`ECOSYSTEM_WORKFLOW_STEPS`) and privacy guarantees.
+     - Defined offline file format contracts (`ECOSYSTEM_FILE_SPECS`) for `.slr`, `.slr-viewer`, `.csv`, and `.bib`/`.tex`.
+     - Implemented dynamic network URL resolution (`resolveModuleUrl`) that mirrors the active browser hostname (localhost or LAN IP) across respective ports.
+  2. **Interactive Ecosystem Modal Component (`src/components/features/modals/EcosystemModal.tsx`)**:
+     - Engineered 3 tabbed inspection views: `Sub-Modules & Capabilities` (with active node indicator, capabilities checklist, direct "Open App" links, and clipboard URL copying), `Inter-Module Lifecycle Workflow` (visual 5-step trajectory with route pills and privacy guarantees), and `Data Exchange File Formats` (formal offline file contracts).
+  3. **Sidebar & Application Shell Integration (`src/components/Sidebar.tsx`, `src/app/page.tsx`)**:
+     - Added dedicated "Ecosystem Hub" trigger button in the sidebar footer with responsive collapsed tooltips and smooth modal transitions.
+  4. **Verification & Type Safety**:
+     - Validated with `npx tsc --noEmit` (0 errors) and Next.js production build.
+- **Files Modified/Created**:
+  - `slr-ide/src/lib/services/ecosystem-data.ts`
+  - `slr-ide/src/components/features/modals/EcosystemModal.tsx`
+  - `slr-ide/src/components/Sidebar.tsx`
+  - `slr-ide/src/app/page.tsx`
+  - `slr-ide/files.md`
+  - `slr-ide/improvements-log.md`
+
 ## #571 - Academic Color Palette Studio: 76 Prestigious Presets Expansion, Instant Search & Domain Filter Pills, and 100% Harmonic Geometry Across All 19 Chart Types (2026-09-13)
 - **Goal**: Expand the Academic Color Palette catalog to 76 prestigious presets, ensure 100% of presets possess complete semantic tokens (`colors`, `bg`, `text`, `subtext`, `border`, `accent`, `secondary`, `surface`, `gridLine`, `heatScale`, `isDark`), build an ergonomic Palette Studio with instant search and domain category filtering, and ensure every single chart type deeply harmonizes with the active palette.
 - **Architectural Implementation**:

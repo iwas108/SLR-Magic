@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { LayoutDashboard, Database, ShieldAlert, Play, BadgeCheck, FileOutput, Sun, Moon, Laptop, Settings, ChevronLeft, ChevronRight, BookOpenCheck } from 'lucide-react';
+import { LayoutDashboard, Database, ShieldAlert, Play, BadgeCheck, FileOutput, Sun, Moon, Laptop, Settings, ChevronLeft, ChevronRight, BookOpenCheck, Network } from 'lucide-react';
 
 interface SidebarProps {
   activeProject?: any;
@@ -10,9 +10,10 @@ interface SidebarProps {
   theme: string;
   setTheme: (theme: string) => void;
   onOpenSettings: () => void;
+  onOpenEcosystem?: () => void;
 }
 
-export default function Sidebar({ activeTab, setActiveTab, theme, setTheme, onOpenSettings }: SidebarProps) {
+export default function Sidebar({ activeTab, setActiveTab, theme, setTheme, onOpenSettings, onOpenEcosystem }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
 
@@ -250,6 +251,24 @@ export default function Sidebar({ activeTab, setActiveTab, theme, setTheme, onOp
 
       {/* Footer Settings & Theme */}
       <div className={`border-t border-border bg-secondary/20 space-y-4 transition-all duration-300 ${isCollapsed ? 'p-2' : 'p-4'}`}>
+        {/* Ecosystem Hub button */}
+        {onOpenEcosystem && (
+          <button
+            onClick={onOpenEcosystem}
+            className={`relative w-full flex items-center rounded-lg text-xs font-semibold text-primary hover:bg-primary/10 transition-all duration-200 text-left group cursor-pointer border border-primary/20 ${
+              isCollapsed ? 'justify-center p-2.5' : 'gap-3 px-3 py-2'
+            }`}
+          >
+            <Network className="w-4 h-4 text-primary shrink-0" />
+            {!isCollapsed && <span>Ecosystem Hub</span>}
+            {isCollapsed && (
+              <span className="absolute left-14 scale-0 rounded bg-popover border border-border px-2 py-1 text-xs font-medium text-popover-foreground shadow-md transition-all duration-200 group-hover:scale-100 z-50 whitespace-nowrap pointer-events-none origin-left">
+                Ecosystem Hub
+              </span>
+            )}
+          </button>
+        )}
+
         {/* Settings button */}
         <button
           onClick={onOpenSettings}

@@ -2,6 +2,34 @@
 
 All notable changes, refactoring milestones, and feature additions to `slr-viewer/` are documented in this log.
 
+## [#033] [2026-09-15] - app-script Deprecation Cleanup & Dynamic SPA Route Resolution
+
+### Architecture & Routing Upgrades
+- **Dynamic Cloud SPA Route Resolution (`src/lib/services/ecosystem-data.ts`)**:
+  - Removed deprecated `app-script` from module definitions and updated Step 5 of the review lifecycle to open science repository archiving (Zenodo, OSF, Dataverse).
+  - Enhanced `resolveModuleUrl` to detect GitHub Pages (`*.github.io`) and static hosting (`*.pages.dev`), linking directly to static SPA production paths (`/SLR-Magic/<module>/dist/`) while retaining localhost/LAN port routing.
+- **Verification**:
+  - `npm run typecheck`: 0 errors.
+  - `npm run build`: Production Vite build completed cleanly.
+
+---
+
+## [#032] [2026-09-15] - Ecosystem Hub & Cross-Module Architecture Navigation
+
+### Feature Additions & Cross-Module Connectivity
+- **Cross-Module Ecosystem Architecture Modal (`src/components/modals/EcosystemModal.tsx`)**:
+  - Implemented standalone interactive modal displaying the complete SLR Magic architecture across all sub-modules (`slr-ide`, `inter-rater`, `slr-viewer`, `worker-server`).
+  - Added 3 interactive tabs: `Sub-Modules & Capabilities` (with active node indicator, capabilities checklist, direct "Open App" links, and clipboard URL copying), `Inter-Module Lifecycle Workflow` (5-step data trajectory with route pills and privacy guarantees), and `Data Exchange File Formats` (.slr, .slr-viewer, .csv, .bib).
+- **Shared Ecosystem Service & Network URL Resolver (`src/lib/services/ecosystem-data.ts`)**:
+  - Master domain dictionary defining module specs, roles, tech stacks, and dynamic URL port resolution matching the current hostname.
+- **Sidebar Integration (`src/components/Sidebar.tsx`)**:
+  - Embedded "Ecosystem Hub" trigger button in the collapsible sidebar footer above the build timestamp and theme switchers.
+- **Verification**:
+  - `npm run typecheck`: 0 errors.
+  - `npm run build`: Production Vite build completed cleanly.
+
+---
+
 ## [#031] [2026-09-12] - Visualizer Studio: Foolproof Scientific Auto-Newline, Protocol-Aware Word Wrap & Atomic Token Protection
 
 ### Bug Fixes & Text Engine Refactoring

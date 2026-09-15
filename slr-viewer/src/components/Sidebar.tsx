@@ -11,9 +11,11 @@ import {
   DollarSign,
   Database,
   GitFork,
-  Layers
+  Layers,
+  Network
 } from 'lucide-react';
 import { useViewerData } from '@/context/ViewerContext';
+import EcosystemModal from './modals/EcosystemModal';
 
 export interface SidebarProps {
   theme: string;
@@ -24,6 +26,7 @@ export interface SidebarProps {
 export default function Sidebar({ theme, setTheme, onOpenImportModal }: SidebarProps) {
   const { activeTab, setActiveTab, activeSession } = useViewerData();
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isEcosystemOpen, setIsEcosystemOpen] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('slr_viewer_sidebar_collapsed');
@@ -146,6 +149,17 @@ export default function Sidebar({ theme, setTheme, onOpenImportModal }: SidebarP
 
       {/* Footer Theme Switcher & Build Info */}
       <div className={`border-t border-border bg-secondary/20 transition-all duration-300 ${isCollapsed ? 'p-2' : 'p-4'}`}>
+        <button
+          onClick={() => setIsEcosystemOpen(true)}
+          className={`mb-3 w-full flex items-center rounded-lg text-[11px] font-semibold text-primary hover:bg-primary/10 transition-all duration-200 text-left group cursor-pointer border border-primary/20 ${
+            isCollapsed ? 'justify-center p-2' : 'gap-2 px-2.5 py-1.5'
+          }`}
+          title="Ecosystem Hub"
+        >
+          <Network className="w-4 h-4 text-primary shrink-0" />
+          {!isCollapsed && <span>Ecosystem Hub</span>}
+        </button>
+
         {!isCollapsed && (
           <div 
             title={`Compiled on: ${typeof __BUILD_TIME__ !== 'undefined' ? new Date(__BUILD_TIME__).toLocaleString() : 'N/A'}`}
@@ -183,6 +197,12 @@ export default function Sidebar({ theme, setTheme, onOpenImportModal }: SidebarP
           </div>
         </div>
       </div>
+      
+      <EcosystemModal
+        isOpen={isEcosystemOpen}
+        onClose={() => setIsEcosystemOpen(false)}
+        currentModuleId="slr-viewer"
+      />
     </aside>
   );
 }

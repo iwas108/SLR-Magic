@@ -21,6 +21,7 @@ const ReferenceSyncerView = dynamic(() => import('../components/features/Referen
 const FullscreenAssignModal = dynamic(() => import('../components/features/modals/FullscreenAssignModal'), { ssr: false });
 const FullscreenInterRaterModal = dynamic(() => import('../components/features/modals/FullscreenInterRaterModal'), { ssr: false });
 const GlobalModals = dynamic(() => import('../components/features/GlobalModals'), { ssr: false });
+const EcosystemModal = dynamic(() => import('../components/features/modals/EcosystemModal'), { ssr: false });
 
 import { useAppSync } from '@/hooks/useAppSync';
 import { useProjects } from '@/hooks/useProjects';
@@ -39,6 +40,7 @@ export default function DashboardPage() {
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [theme, setTheme] = useState('dark');
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isEcosystemOpen, setIsEcosystemOpen] = useState(false);
   const [toasts, setToasts] = useState<{ id: number; message: string; type: 'success' | 'error' | 'warning' | 'info' }[]>([]);
 
   // Paper Selection & LLM Run parameters
@@ -348,6 +350,7 @@ export default function DashboardPage() {
         theme={theme}
         setTheme={handleThemeChange}
         onOpenSettings={() => setIsSettingsOpen(true)}
+        onOpenEcosystem={() => setIsEcosystemOpen(true)}
       />
 
       <main className="flex-1 flex flex-col overflow-hidden relative">
@@ -629,6 +632,11 @@ export default function DashboardPage() {
           }
         }}
         onOpenImportArchive={() => setShowImportModal(true)}
+      />
+      <EcosystemModal
+        isOpen={isEcosystemOpen}
+        onClose={() => setIsEcosystemOpen(false)}
+        currentModuleId="slr-ide"
       />
     </div>
   );

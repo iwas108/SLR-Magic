@@ -4,6 +4,29 @@ This document tracks all changes, refactors, and feature additions applied to th
 
 ---
 
+## [#031] app-script Deprecation Cleanup & Dynamic SPA Route Resolution - 2026-09-15
+
+- **Dynamic Cloud SPA Route Resolution (`src/lib/services/ecosystem-data.js`)**:
+  - Removed deprecated `app-script` from module definitions and updated Step 5 to open science repository archiving (Zenodo, OSF, Dataverse).
+  - Enhanced `resolveModuleUrl` to detect GitHub Pages (`*.github.io`) and static hosting (`*.pages.dev`), linking directly to static SPA production paths (`/SLR-Magic/<module>/dist/`) while retaining localhost/LAN port routing.
+- **Verification**: Verified `npm run build` executed cleanly without errors.
+
+---
+
+## [#030] Ecosystem Hub & Architecture Cross-Module Navigation - 2026-09-15
+
+- **Cross-Module Ecosystem Architecture Modal (`src/components/modals/EcosystemModal.jsx`)**:
+  - Implemented standalone interactive modal displaying the full SLR Magic architecture across all sub-modules (`slr-ide`, `inter-rater`, `slr-viewer`, `worker-server`).
+  - Added 3 interactive tabs: `Sub-Modules & Capabilities`, `Inter-Module Lifecycle Workflow` (5-step data trajectory), and `Data Exchange File Formats` (.slr, .slr-viewer, .csv, .bib).
+  - Features active node badge (`YOU ARE HERE`), port display, URL copy buttons, and direct external launch links.
+- **Ecosystem Data Dictionary & Network Resolver (`src/lib/services/ecosystem-data.js`)**:
+  - Shared domain service defining complete module specs, capabilities, and dynamic network URL port resolution matching the current hostname.
+- **Top Navbar Hub Button (`src/App.jsx`)**:
+  - Embedded "Ecosystem Hub" trigger button in the main application header alongside the theme switcher.
+- **Dependency Integration**:
+  - Added `lucide-react` for standard UI iconography.
+- **Verification**: Verified `npm run build` executed cleanly without errors.
+
 ## [#029] Transparent GZIP Compression Protocol for Review Exports & Imports - 2026-08-15
 
 - **Web Streams Compression & Decompression Utilities (`src/lib/slrCompression.js`)**:

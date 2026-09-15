@@ -10,14 +10,14 @@ Welcome, coding agent! This document contains the master developer instructions,
 
 ## 1. Active Modules & Workspace Structure
 
-The repository is structured around three active modules. All other legacy folders (like `pdfhelper` and `llm-proxy`) are deprecated and will be removed after final implementation of the new architecture:
+The repository is structured around three active modules. All legacy/deprecated folders (like `pdfhelper`, `llm-proxy`, and `app-script`) have been deprecated or removed:
 
 1.  **`slr-ide/`**: The local Next.js + SQLite desktop application. It serves as the **one-stop solution** for the entire systematic literature review (SLR) workflow (managing ingestion, PDF acquisition, sync, pooling, and calibration metrics).
 2.  **`inter-rater/`**: The local offline React SPA. It **facilitates blinded inter-rater reviews** by letting independent reviewers evaluate assigned paper pools without visibility into other raters' choices or AI decisions.
-3.  **`app-script/`**: The Google Apps Script codebase running within the Google Sheets environment. It **only acts as a FAIR-compliant database** to ingest exported datasets from any step in `slr-ide`. This minimizes the required Google API app permissions and security/trust considerations.
+3.  **`slr-viewer/`**: The local offline React SPA (Dexie.js + IndexedDB). It **serves as the read-only dataset snapshot visualizer** for interactive PRISMA 2020 flowcharts, 17 scientific ECharts panels, and LLM accounting breakdowns.
 
 ### Local-First & File-Based Architecture
-The workflow runs entirely locally on a reviewer's computer. It utilizes file-based synchronization (`.slr` with JSON schema for reviews, and `.csv` for spreadsheet FAIR database updates). This approach drops previous complex infrastructure requirements such as custom VPN tunnels and HAProxy load balancers.
+The workflow runs entirely locally on a reviewer's computer. It utilizes file-based synchronization (`.slr` with JSON schema for reviews, `.slr-viewer` for snapshot visualization, and `.csv` for open FAIR data repositories). This approach drops previous complex infrastructure requirements such as custom VPN tunnels and HAProxy load balancers.
 
 ### Workspace Router Guidelines
 When the user's instruction targets specific modules (e.g., "new feats in slr-ide" or "update inter-rater"), you must:
@@ -31,7 +31,7 @@ When the user's instruction targets specific modules (e.g., "new feats in slr-id
 To maintain the system state and trace all changes cleanly, we adopt a hierarchical documentation standard:
 
 ### 2.1 Module-Scoped Blueprints (`architecture.md`)
-*   Every active module (`app-script/`, `slr-ide/`, `inter-rater/`) **MUST** have its own `architecture.md` file (e.g., [app-script/architecture.md](app-script/architecture.md), [slr-ide/architecture.md](slr-ide/architecture.md), [inter-rater/architecture.md](inter-rater/architecture.md)) acting as a comprehensive blueprint of that module.
+*   Every active module (`slr-ide/`, `inter-rater/`, `slr-viewer/`) **MUST** have its own `architecture.md` file (e.g., [slr-ide/architecture.md](slr-ide/architecture.md), [inter-rater/architecture.md](inter-rater/architecture.md), [slr-viewer/architecture.md](slr-viewer/architecture.md)) acting as a comprehensive blueprint of that module.
 *   These module-scoped blueprints are compiled to construct the system-level `architecture.md` in the root directory.
 
 ### 2.2 Module-Scoped Logs (`improvements-log.md`)

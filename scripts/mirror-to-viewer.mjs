@@ -90,6 +90,10 @@ copyFile(
   path.join(ideDir, 'src/lib/sync-utils.ts'),
   path.join(viewerDir, 'src/lib/sync-utils.ts')
 );
+copyFile(
+  path.join(ideDir, 'src/lib/services/ecosystem-data.ts'),
+  path.join(viewerDir, 'src/lib/services/ecosystem-data.ts')
+);
 
 // 2. Mirror Types
 console.log('\n[2/5] Mirroring Types...');
@@ -107,6 +111,10 @@ copyDir(
 
 // 4. Mirror Modals
 console.log('\n[4/5] Mirroring Modals...');
+copyFile(
+  path.join(ideDir, 'src/components/features/modals/EcosystemModal.tsx'),
+  path.join(viewerDir, 'src/components/modals/EcosystemModal.tsx')
+);
 copyFile(
   path.join(ideDir, 'src/components/features/modals/VisualizerModal.tsx'),
   path.join(viewerDir, 'src/components/final-cohort/VisualizerModal.tsx')

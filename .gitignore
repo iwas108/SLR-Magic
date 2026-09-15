@@ -45,7 +45,6 @@ slr.db
 .env.development.local
 .env.test.local
 .env.production.local
-.clasp.json
 .rclone.conf
 rclone.conf
 

@@ -38,10 +38,10 @@ Access the live web deployments of the SLR Magic platform components directly in
 │  - 4-Stage Gemini LLM Pipeline    │  - Blinded Human Reviewer Isolation          │
 │  - Turbovec Semantic Vector RPC   │  - Cohen's Kappa (κ) Agreement Engine        │
 ├───────────────────────────────────┼──────────────────────────────────────────────┤
-│  📊 SLR VIEWER (slr-viewer/)      │  📑 APP SCRIPT (app-script/)                 │
-│  - Read-Only Snapshot Visualizer │  - Google Sheets FAIR Database Endpoint      │
-│  - Interactive PRISMA 2020 Canvas │  - Zero-OAuth Permission Security Model      │
-│  - 17 Scientific ECharts Panels   │  - Automated Tabular Ingestion & Sync        │
+│  📊 SLR VIEWER (slr-viewer/)      │  🌐 OPEN SCIENCE REPOS (Zenodo / OSF)        │
+│  - Read-Only Snapshot Visualizer │  - Standard RFC 4180 CSV & JSON Artifacts    │
+│  - Interactive PRISMA 2020 Canvas │  - FAIR Data Compliant Open Archiving        │
+│  - 17 Scientific ECharts Panels   │  - Zero Proprietary Lock-In Format           │
 └───────────────────────────────────┴──────────────────────────────────────────────┘
 ```
 
@@ -133,10 +133,10 @@ The SLR Magic workspace consists of four modular applications:
 - **Tech Stack:** React 19, Vite 8, Dexie.js (IndexedDB), Apache ECharts 6.
 - **Key Features:** Offline `.slr-viewer` snapshot import, interactive 2D PRISMA 2020 canvas, 17 scientific charts (Sankey, Radar, Stacked Bar), per-stage LLM spend grid.
 
-### 4. 📑 [App Script (`app-script/`)](./app-script)
-- **Role:** FAIR-compliant database endpoint for Google Sheets.
-- **Tech Stack:** Google Apps Script, Google Sheets, ECharts UI.
-- **Key Features:** Direct CSV dataset ingestion, embedded sheet dialog visualizations, zero Google OAuth app permissions for maximum privacy.
+### 4. 🌐 Open Science & FAIR Compliance Publishing
+- **Role:** Direct archive publishing to global repositories (Zenodo, OSF, Dataverse).
+- **Standards:** RFC 4180 CSV, structured JSON snapshot packages, PRISMA 2020 SVG/PNG vector flowcharts.
+- **Key Features:** Zero vendor lock-in, fully reproducible literature review trails, FAIR (Findable, Accessible, Interoperable, Reusable) data compliance without external cloud database dependencies.
 
 ---
 
@@ -238,7 +238,6 @@ Open **`http://localhost:3002`** in your browser.
 - 📘 **[SLR IDE Documentation (`slr-ide/README.md`)](./slr-ide/README.md)**
 - 📘 **[Inter-Rater SPA Documentation (`inter-rater/README.md`)](./inter-rater/README.md)**
 - 📘 **[SLR Viewer Documentation (`slr-viewer/README.md`)](./slr-viewer/README.md)**
-- 📘 **[App Script Documentation (`app-script/README.md`)](./app-script/README.md)**
 
 ---
 

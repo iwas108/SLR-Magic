@@ -11,10 +11,11 @@
     "dev:viewer": "npm --prefix slr-viewer run dev",
     "start:ide": "npm --prefix slr-ide run start",
     "start:viewer": "npm --prefix slr-viewer run preview",
-    "build:viewer": "npm --prefix slr-viewer run build",
     "build:ide": "npm --prefix slr-ide run build",
-    "build:all": "npm run mirror:viewer && npm run build:ide && npm run build:viewer",
-    "typecheck": "npm --prefix slr-viewer run typecheck"
+    "build:inter-rater": "npm --prefix inter-rater run build",
+    "build:viewer": "npm --prefix slr-viewer run build",
+    "build:all": "npm run mirror:viewer && npm run build:ide && npm run build:inter-rater && npm run build:viewer",
+    "typecheck": "npm --prefix slr-ide run typecheck && npm --prefix slr-viewer run typecheck"
   },
   "keywords": [
     "systematic-literature-review",

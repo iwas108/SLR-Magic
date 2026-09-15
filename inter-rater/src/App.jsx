@@ -4,12 +4,15 @@ import ImportWorkflow from './components/ImportWorkflow';
 import ReviewScreen from './components/ReviewScreen';
 import PreScreen from './components/PreScreen';
 import { StorageService } from './StorageService';
+import { Network } from 'lucide-react';
+import EcosystemModal from './components/modals/EcosystemModal';
 
 function App() {
   const [theme, setTheme] = useState('system');
   const [themeLoaded, setThemeLoaded] = useState(false);
   const [currentView, setCurrentView] = useState('dashboard');
   const [viewParams, setViewParams] = useState({});
+  const [isEcosystemOpen, setIsEcosystemOpen] = useState(false);
 
   useEffect(() => {
     const loadTheme = async () => {
@@ -90,7 +93,16 @@ function App() {
             </div>
 
             <div className="flex items-center gap-2">
-              <span className="text-xs text-muted-foreground font-medium">Theme:</span>
+              <button
+                onClick={() => setIsEcosystemOpen(true)}
+                className="flex items-center gap-2 bg-secondary text-secondary-foreground border border-border rounded-lg px-2.5 py-1 text-sm font-semibold hover:bg-secondary/80 focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer"
+                title="Ecosystem Hub"
+              >
+                <Network className="w-4 h-4 text-primary" />
+                <span className="hidden sm:inline">Ecosystem Hub</span>
+              </button>
+              
+              <span className="text-xs text-muted-foreground font-medium ml-2">Theme:</span>
               <select
                 value={theme}
                 onChange={(e) => handleThemeChange(e.target.value)}
@@ -116,9 +128,14 @@ function App() {
           onThemeChange={handleThemeChange}
         />
       )}
+
+      <EcosystemModal
+        isOpen={isEcosystemOpen}
+        onClose={() => setIsEcosystemOpen(false)}
+        currentModuleId="inter-rater"
+      />
     </div>
   );
 }
 
 export default App;
-

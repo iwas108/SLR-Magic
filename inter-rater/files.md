@@ -32,6 +32,7 @@ This document serves as a comprehensive index of every file within the `inter-ra
 | `index.css` | Styling | Base CSS entrypoint importing Tailwind CSS v4 `@import "tailwindcss"`, platform HSL CSS theme tokens, and `@theme` mappings. |
 | `StorageService.js` | Database / Services | Direct interface wrapping IndexedDB (via Dexie) for local storage, CRUD actions, session creation, paper validation, and export generation. |
 | `lib/slrCompression.js` | Compression / Utility | Native Web Streams compression and decompression utility using `CompressionStream` and `DecompressionStream` with automatic GZIP magic byte detection and plain JSON fallback. |
+| `lib/services/ecosystem-data.js` | Services / Domain Data | Master metadata dictionary for all SLR Magic ecosystem modules, technical stacks, capabilities, review lifecycle steps, and dynamic URL port resolver. |
 
 ---
 
@@ -46,6 +47,7 @@ This document serves as a comprehensive index of every file within the `inter-ra
 | `BlindedReviewForm.jsx` | Presentation Component | Encapsulated input form mapping decisions, exclusion criteria tags, quality scores, and data extractions to the active paper appraisal. |
 | `PdfViewer.jsx` | View Component | Sandbox viewport rendering PDF documents locally from Blob URLs with double fail-soft fallbacks. |
 | `features/modals/AutofillModal.jsx` | Modal Component | Standalone modal triggered via `Ctrl+J` providing JSON validation, paper metadata context (copiable Paper ID & prompt details block for Title, Abstract, DOI), and auto-fill field mapping for the active review form. |
+| `components/modals/EcosystemModal.jsx` | Modal Component | Standalone ecosystem architecture modal displaying SLR Magic sub-modules, ports, capabilities, cross-module workflow steps, and standardized file formats. |
 
 ---
 

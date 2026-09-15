@@ -103,7 +103,7 @@
                 </div>
                 <div>
                     <span class="text-xl font-bold tracking-tight font-mono text-slate-900 dark:text-white">SLR<span class="gradient-text">Magic</span></span>
-                    <span id="platform-version-badge" class="hidden sm:inline-block ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20 cursor-help" title="Compiled on: Sep 13, 2026, 09:53:07 AM">v0.1.75</span>
+                    <span id="platform-version-badge" class="hidden sm:inline-block ml-2 px-2 py-0.5 text-xs font-medium rounded-full bg-brand-500/10 text-brand-600 dark:text-brand-400 border border-brand-500/20 cursor-help" title="Compiled on: Sep 15, 2026, 11:33:25 PM">v0.1.77</span>
                 </div>
             </div>
 
@@ -295,10 +295,6 @@
                 <button onclick="switchTab('slr-viewer')" id="tab-btn-slr-viewer" class="module-tab-btn px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center space-x-2 glass-panel hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
                     <i data-lucide="bar-chart-3" class="w-4 h-4"></i>
                     <span>SLR Viewer (IndexedDB)</span>
-                </button>
-                <button onclick="switchTab('app-script')" id="tab-btn-app-script" class="module-tab-btn px-5 py-2.5 rounded-xl text-sm font-semibold transition-all flex items-center space-x-2 glass-panel hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300">
-                    <i data-lucide="table" class="w-4 h-4"></i>
-                    <span>App Script (FAIR Endpoint)</span>
                 </button>
             </div>
 
@@ -500,14 +496,6 @@ npm run dev</pre>
                 img: './docs/ss/40-slr-viewer-scientific-rigor-calibration-to-validation-dashboard.jpg',
                 features: ['Offline Dexie.js (IndexedDB) Persistence', '2D Interactive PRISMA 2020 Canvas', '17 Scientific ECharts Panels (Sankey, Radar, Stacked Bar)', 'API Spend & Accounting Breakdown', 'Vector SVG & High-DPI PNG Exporter'],
                 demoUrl: 'https://iwas108.github.io/SLR-Magic/slr-viewer/dist/'
-            },
-            'app-script': {
-                title: 'App Script (FAIR Spreadsheet Database Endpoint)',
-                desc: 'Lightweight Google Apps Script endpoint running directly inside Google Sheets to store exported CSV datasets under zero-OAuth permissions.',
-                badge: 'Google Sheets Endpoint',
-                img: './docs/ss/30-slr-ide-insight-and-export-scientific-rigor-cloud-gold-mine.jpg',
-                features: ['FAIR Data Spreadsheet Compliance', 'Zero Google OAuth Permission Footprint', 'In-Sheet ECharts Visualization Dialogs', 'Metadata Deduplication Rules', 'Seamless CSV Dataset Ingestion'],
-                demoUrl: 'https://iwas108.github.io/SLR-Magic/'
             }
         };
 

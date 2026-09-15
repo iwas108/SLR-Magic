@@ -55,6 +55,7 @@ This document serves as a comprehensive index of every file within the `slr-view
 | `src/lib/services/pdf-export-service.ts` | Document Exporter | Client-side PDF export service converting vector SVGs and canvas diagrams into high-resolution vector PDF documents via jsPDF + svg2pdf.js. |
 | `src/lib/inter-rater/adjudication-calculations.ts` | Reliability Engine | Pure TypeScript calculation engine for Cohen's Kappa, Linear Weighted Kappa, Precision, Miner Schema Exactness, and Pool C QA review summaries. |
 | `src/lib/csv-export.ts` | Export Utility | RFC 4180-compliant tabular CSV export utility with UTF-8 BOM (`\uFEFF`) and study prevalence deduplication. |
+| `src/lib/services/ecosystem-data.ts` | Domain Service / Data Definition | Master metadata dictionary for all SLR Magic ecosystem modules, technical stacks, capabilities, review lifecycle steps, file specifications (.slr, .slr-viewer, .csv, .bib), and dynamic URL port resolver. |
 
 ---
 
@@ -65,6 +66,7 @@ This document serves as a comprehensive index of every file within the `slr-view
 | `src/components/Sidebar.tsx` | Navigation / UI | Collapsible sidebar navigation menu matching SLR IDE layout with status badges and section links. |
 | `src/components/Dashboard.tsx` | Workspace Board | Multi-session management dashboard with search, sort, file metadata inspection, and session deletion. |
 | `src/components/ImportWorkflow.tsx` | File Ingestion | Drag-and-drop file ingestion area supporting both `.slr-viewer` (Gzip binary) and `.json` uncompressed snapshot bundles. |
+| `src/components/modals/EcosystemModal.tsx` | Modal Component | Centralized interactive ecosystem architecture modal displaying all SLR Magic sub-modules, ports, capabilities, cross-module workflow steps, standardized file formats, and network copy links. |
 | `src/components/common/FullscreenErrorModal.tsx` | Error Handling | Interceptor modal displaying actionable error messages when snapshot validation fails or file corruptions occur. |
 | `src/components/final-cohort/FinalCohortPanel.tsx` | Data Grid / Table | Comprehensive final cohort data grid with column filters, search, inline paper inspection launcher, and action buttons for Visualizer Studio (with saved charts badge) and LLM Context Builder. |
 | `src/components/final-cohort/ClickableCell.tsx` | Grid Cell Renderer | Clean condensed table cell renderer displaying truncated values with instant click-to-inspect trigger. |
@@ -109,4 +111,6 @@ This document serves as a comprehensive index of every file within the `slr-view
 | `visualizer/hooks/` | Custom State Hooks | Specialized hooks managing visualizer camera zoom/pan, chart options, data mapping, presets, and styling. |
 | `visualizer/utils/` | Algorithmic Utilities | Color palettes, data extractors, export formatters, hatch pattern engines, Hare-Hamilton quota balancer, and statistical estimators. |
 | `src/lib/sync-utils.ts` | Synchronization | Implements the Agnostic BroadcastChannel pattern (`broadcastSync`, `subscribeSyncChannel`) for cross-tab synchronization and reactivity. |
+| `src/lib/services/ecosystem-data.ts` | Services / Domain Data | Master metadata dictionary for all SLR Magic ecosystem modules, technical stacks, capabilities, review lifecycle steps, file specifications (.slr, .slr-viewer, .csv, .bib), and dynamic URL port resolver. |
+| `src/components/modals/EcosystemModal.tsx` | Modal Component | Standalone ecosystem architecture modal displaying SLR Magic sub-modules, ports, capabilities, cross-module workflow steps, and standardized file formats. |
 

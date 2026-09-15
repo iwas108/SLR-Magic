@@ -8,11 +8,10 @@ This document defines the global architectural design, data models, and module i
 
 The SLR Magic workspace coordinates systematic literature reviews (SLRs) through a local, laptop-first architecture. It prioritizes offline-capable local processes and file-based exchanges over complex network configurations (dropping requirements for custom VPN configurations, HAProxy reverse proxies, or centralized cloud databases).
 
-The workspace comprises four active, complementary modules:
+The workspace comprises three active, complementary modules:
 1. **Local Desktop Workspace Hub (`slr-ide/`)**: A local Next.js + SQLite application acting as the **one-stop solution** for the entire workflow. It handles project setup, reference ingestion, Python-based PDF matching/crawling, cloud syncing, 4-stage Gemini LLM screening, calibration pool assignment, and consensus Kappa metric calculation.
 2. **Blinded Review Client (`inter-rater/`)**: An offline-capable React SPA that **facilitates blinded inter-rater review** sessions. Reviewers import rating packages, score papers independently using keyboard shortcuts, and export results back without seeing AI ratings or co-reviewer selections.
 3. **Read-Only Snapshot Visualizer (`slr-viewer/`)**: An offline React SPA operating on Dexie.js (IndexedDB). It imports `.slr-viewer` snapshot datasets to render interactive 2D PRISMA 2020 flowcharts, 17 scientific ECharts panels, and LLM accounting breakdowns.
-4. **FAIR Compliance Spreadsheet Database (`app-script/`)**: A Google Apps Script application operating within Google Sheets. It serves strictly as a **FAIR-compliant cloud database endpoint** to ingest finalized project results under zero Google OAuth app permissions.
 
 ```mermaid
 graph TD
@@ -29,7 +28,7 @@ graph TD
         B -->|Rclone CLI Sync| H[Cloud Storage Google Drive / OneDrive]
     end
     
-    A -->|4. Export FAIR CSV Ingestion| I[app-script: Google Sheets FAIR Database Sink]
+    A -->|4. Export RFC 4180 CSV / JSON| I[Open Science FAIR Repositories: Zenodo / OSF / Dataverse]
     E -->|Upload matched PDFs| H
     A -->|Fetch shareable file links| H
 ```
@@ -66,13 +65,6 @@ graph TD
     - **Cohort Visualizer:** 17 scientific chart types (Sankey flow diagrams, Stacked Bar, Radar, Line, Pie, Boxplot, Sunburst).
     - **LLM Spend & Accounting:** Per-stage cost grid and top expensive API call telemetry.
 
-### IV. Google Sheets FAIR Database (`app-script/`)
-*For details, refer to the module blueprint: [app-script/architecture.md](app-script/architecture.md)*
-
-*   **Role**: Minimizes Google App security permission boundaries by acting strictly as a FAIR-compliant database sink.
-*   **Ingestion**: Receives final reference CSV outputs exported from `slr-ide` to archive the systematically compiled literature dataset.
-*   **Cohort Archiving**: Stores references under `00_Raw_Harvest` and copies selected papers to `05_Synthesis` for cloud indexing.
-
 ---
 
 ## 3. Data Ingestion & Sync Protocol
@@ -86,9 +78,8 @@ Literature reference data exchanges are synchronized using localized file-based 
 3. **Offline Snapshot Analysis**:
    - `slr-ide` exports project state into a `.slr-viewer` JSON snapshot file.
    - Stakeholders and peer reviewers import this snapshot into `slr-viewer` to explore PRISMA flowcharts, cohort statistics, and spend metrics offline.
-4. **FAIR Database Ingestion**:
-   - The completed database cohort is exported from `slr-ide` as a standard `.csv` file.
-   - The user uploads this `.csv` file into the `app-script` Google Sheet workspace to populate the master `00_Raw_Harvest` and `05_Synthesis` sheets for FAIR storage compliance.
+4. **Open Science & FAIR Data Export**:
+   - The completed database cohort is exported from `slr-ide` as standardized RFC 4180 `.csv` and structured `.json` data packages ready for direct deposit into open research repositories such as Zenodo, OSF, or institutional dataverse instances.
 
 ---
 
