@@ -52,6 +52,21 @@ Operating 100% offline via **Dexie.js (IndexedDB)**, it provides researchers, pe
 
 ---
 
+## 📦 Pre-Built Standalone Releases (Zero-Install)
+
+If you only need to inspect or verify a published study's `.slr-viewer` snapshot dataset, you do **not** need to install Node.js, Python, or build from source:
+
+1. **Universal Single-File HTML (`slr-viewer.html`)**:
+   - Download `slr-viewer.html` from [GitHub Releases](https://github.com/iwas108/SLR-Magic/releases).
+   - Double-click to open in any modern browser (Chrome, Firefox, Safari, Edge).
+   - 100% self-contained with base64-inlined fonts (~5.2 MB) and zero network requests.
+2. **Native Desktop Executable (`slr-viewer.exe` / Linux / macOS)**:
+   - Download the native binary for your OS from [GitHub Releases](https://github.com/iwas108/SLR-Magic/releases).
+   - Double-click to launch (or drag & drop a `.slr-viewer` snapshot file onto `slr-viewer.exe`).
+   - Automatically allocates a collision-free loopback port on `127.0.0.1` and opens your browser.
+
+---
+
 ## ⚡ Quick Start Setup
 
 ### Automated Setup (From Workspace Root)

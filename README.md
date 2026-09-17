@@ -4,6 +4,7 @@
 [![Landing Page](https://img.shields.io/badge/%F0%9F%8C%90%20Live%20Platform-SLR%20Magic%20Docs-2563eb.svg?style=for-the-badge&logo=githubpages&logoColor=white)](https://iwas108.github.io/SLR-Magic/)
 [![Live Inter-Rater SPA](https://img.shields.io/badge/%F0%9F%91%A5%20Live%20SPA-Inter--Rater%20Reviewer-purple.svg?style=for-the-badge&logo=react&logoColor=white)](https://iwas108.github.io/SLR-Magic/inter-rater/dist/)
 [![Live SLR Viewer SPA](https://img.shields.io/badge/%F0%9F%93%8A%20Live%20SPA-SLR%20Viewer%20Analytics-emerald.svg?style=for-the-badge&logo=apacheecharts&logoColor=white)](https://iwas108.github.io/SLR-Magic/slr-viewer/dist/)
+[![GitHub Release](https://img.shields.io/github/v/release/iwas108/SLR-Magic?style=for-the-badge&logo=github&color=blue)](https://github.com/iwas108/SLR-Magic/releases)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge&logo=opensourceinitiative&logoColor=white)](LICENSE)
 [![Architecture: Local-First](https://img.shields.io/badge/Architecture-Local--First%20%26%20File--Based-0052CC.svg?style=for-the-badge&logo=sqlite&logoColor=white)](architecture.md)
@@ -22,6 +23,30 @@ Access the live web deployments of the SLR Magic platform components directly in
 | 🏠 **SLR Magic Landing Page** | [https://iwas108.github.io/SLR-Magic/](https://iwas108.github.io/SLR-Magic/) | Platform overview, visual gallery & system documentation |
 | 👥 **Inter-Rater SPA** | [https://iwas108.github.io/SLR-Magic/inter-rater/dist/](https://iwas108.github.io/SLR-Magic/inter-rater/dist/) | Offline double-blind human reviewer workspace |
 | 📊 **SLR Viewer SPA** | [https://iwas108.github.io/SLR-Magic/slr-viewer/dist/](https://iwas108.github.io/SLR-Magic/slr-viewer/dist/) | Interactive PRISMA 2020 flowchart & ECharts visualizer |
+
+---
+
+## 📦 Ready-to-Use Standalone Builds (Zero Setup & 100% Offline)
+
+For readers, peer reviewers, and meta-analysts who want to inspect published study snapshots without installing Node.js, Python, or any build tools, we provide **pre-built, zero-dependency, standalone executables and single-file bundles** for all major operating systems:
+
+| Download / Package | Target Platform | Type | How to Run |
+| :--- | :--- | :--- | :--- |
+| 📊 **`slr-viewer.html`** | **Universal** (Windows, macOS, Linux, iPad) | Single-File HTML (~5.2 MB) | **Double-click to open in any web browser.** Runs 100% offline with embedded typography. Drag & drop your `.slr-viewer` snapshot to view. |
+| 🪟 **`slr-viewer-windows-amd64.exe`** | **Windows (x64)** | Native Desktop Binary (~10 MB) | Double-click to launch. Binds an ephemeral local port dynamically and opens your default browser with zero port collisions. |
+| 🐧 **`slr-viewer-linux-amd64`** | **Linux (x64)** | Statically-Linked ELF Binary | Run `./slr-viewer-linux-amd64` in terminal. Zero glibc/system dependencies. |
+| 🍎 **`slr-viewer-darwin-arm64` / `amd64`** | **macOS (Apple Silicon & Intel)** | Native Mach-O Binaries | Run `./slr-viewer-darwin-arm64` (M1/M2/M3/M4) or `./slr-viewer-darwin-amd64` (Intel). |
+| 👥 **`inter-rater.html`** | **Universal** (Any Browser) | Single-File HTML (~550 KB) | Double-click to open offline blinded reviewer client. Drag & drop any `.slr` calibration pool. |
+
+👉 **[Download Pre-Built Binaries from GitHub Releases](https://github.com/iwas108/SLR-Magic/releases)**
+
+> [!TIP]
+> **Building Standalone Packages Locally**:
+> You can also generate the standalone distribution locally anytime with:
+> ```bash
+> npm run build:standalone:all
+> ```
+> Compiled artifacts, versioned copies, and RFC-compliant `SHA256SUMS.txt` will be output directly to [`dist-standalone/`](dist-standalone/).
 
 ---
 
