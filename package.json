@@ -15,6 +15,10 @@
     "build:inter-rater": "npm --prefix inter-rater run build",
     "build:viewer": "npm --prefix slr-viewer run build",
     "build:all": "npm run mirror:viewer && npm run build:ide && npm run build:inter-rater && npm run build:viewer",
+    "build:standalone:viewer": "npm --prefix slr-viewer run build:standalone",
+    "build:standalone:inter-rater": "npm --prefix inter-rater run build:standalone",
+    "build:standalone:all": "npm run mirror:viewer && npm run build:standalone:viewer && npm run build:standalone:inter-rater",
+    "build:dist-bin": "node scripts/build-standalone-dist.mjs",
     "typecheck": "npm --prefix slr-ide run typecheck && npm --prefix slr-viewer run typecheck"
   },
   "keywords": [

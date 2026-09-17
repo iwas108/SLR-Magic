@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { viteSingleFile } from 'vite-plugin-singlefile'
 import fs from 'fs'
 import path from 'path'
 import { fileURLToPath } from 'url'
@@ -39,16 +40,35 @@ function resolveNetworkConfig() {
 
 const netConfig = resolveNetworkConfig()
 
+// Injects version metadata tag into HTML head
+const htmlVersionPlugin = {
+  name: 'html-version-injector',
+  transformIndexHtml(html) {
+    return html.replace(
+      '<head>',
+      `<head>\n    <meta name="inter-rater-version" content="${pkg.version}">`
+    )
+  },
+}
+
 // https://vite.dev/config/
-export default defineConfig(({ mode }) => ({
-  plugins: [react(), tailwindcss()],
-  define: {
-    __APP_VERSION__: JSON.stringify(pkg.version),
-    __BUILD_TIME__: JSON.stringify(now),
-  },
-  base: mode === 'production' ? '/SLR-Magic/inter-rater/dist/' : './',
-  server: {
-    host: netConfig.host,
-    port: netConfig.port,
-  },
-}))
+export default defineConfig(({ mode }) => {
+  const isSingleFile = mode === 'singlefile'
+  const plugins = [react(), tailwindcss(), htmlVersionPlugin]
+  if (isSingleFile) {
+    plugins.push(viteSingleFile())
+  }
+
+  return {
+    plugins,
+    define: {
+      __APP_VERSION__: JSON.stringify(pkg.version),
+      __BUILD_TIME__: JSON.stringify(now),
+    },
+    base: isSingleFile ? './' : mode === 'production' ? '/SLR-Magic/inter-rater/dist/' : './',
+    server: {
+      host: netConfig.host,
+      port: netConfig.port,
+    },
+  }
+})

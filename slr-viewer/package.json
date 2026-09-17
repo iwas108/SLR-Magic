@@ -1,13 +1,15 @@
 {
   "name": "slr-viewer",
   "private": true,
-  "version": "1.1.46",
+  "version": "1.1.51",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "predev": "node ../scripts/mirror-to-viewer.mjs",
     "prebuild": "node ../scripts/mirror-to-viewer.mjs && node scripts/bump-version.js",
     "build": "vite build",
+    "build:singlefile": "npm run prebuild && vite build --mode singlefile",
+    "build:standalone": "npm run build:singlefile && node ../scripts/build-standalone-dist.mjs --module=viewer",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview"
   },
@@ -31,6 +33,7 @@
     "@vitejs/plugin-react": "^6.0.1",
     "tailwindcss": "^4.1.10",
     "typescript": "^5.8.2",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vite-plugin-singlefile": "^2.3.3"
   }
 }

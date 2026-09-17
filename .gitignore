@@ -70,3 +70,6 @@ docs/prompts/**
 # tmp dir
 tmp
 tmp/**
+
+# Standalone distribution builds
+dist-standalone/

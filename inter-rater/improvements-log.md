@@ -4,6 +4,21 @@ This document tracks all changes, refactors, and feature additions applied to th
 
 ---
 
+## [#032] Zero-Dependency Standalone Single-File Distribution & Hybrid Storage Engine - 2026-09-17
+
+- **Hybrid Storage Engine with InMemory Fallback (`src/StorageService.js`)**:
+  - Implemented lazy `getDb()` initialization with Dexie exception guard to protect against `SecurityError` and unavailable IndexedDB when executed under `file:///` protocols in Firefox/Safari.
+  - Implemented `InMemorySessionStore` providing complete review session CRUD, paper appraisal updates, data synchronization, and export functionality in memory when browser IndexedDB is unavailable or blocked.
+- **Single-File Bundling & Auto-Builder (`vite.config.js` & `package.json`)**:
+  - Integrated `vite-plugin-singlefile` under conditional `mode === 'singlefile'` bundling.
+  - Injected dynamic version metadata tag `<meta name="inter-rater-version">` into HTML `<head>`.
+  - Added `build:singlefile` and `build:standalone` scripts producing self-contained ~552 KB single-file HTML distributions.
+- **Auto-Builder Integration (`scripts/build-standalone-dist.mjs`)**:
+  - Wired into centralized auto-builder creating `dist-standalone/inter-rater.html` and generating RFC-compliant SHA-256 checksums in `SHA256SUMS.txt`.
+- **Verification**: Verified `npm run build:standalone` executed `prebuild`, bundled cleanly, and output verified single-file artifacts.
+
+---
+
 ## [#031] app-script Deprecation Cleanup & Dynamic SPA Route Resolution - 2026-09-15
 
 - **Dynamic Cloud SPA Route Resolution (`src/lib/services/ecosystem-data.js`)**:

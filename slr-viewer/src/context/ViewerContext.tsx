@@ -14,6 +14,7 @@ export interface ViewerContextType {
   activeSession: SessionRecord | null;
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  clearActiveSession: () => void;
   loadSessions: () => Promise<void>;
   switchSession: (id: number | string, targetTab?: string) => Promise<void>;
   importSnapshot: (file: File) => Promise<SessionRecord>;
@@ -52,6 +53,11 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
     setTimeout(() => {
       setToast((prev) => (prev?.message === message ? null : prev));
     }, 4000);
+  }, []);
+
+  const clearActiveSession = useCallback(() => {
+    setActiveSessionId(null);
+    setActiveSession(null);
   }, []);
 
   const switchSession = useCallback(async (id: number | string, targetTab?: string) => {
@@ -105,11 +111,63 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
     }
   }, [activeSessionId, showToast]);
 
-  // Handle URL parameters (?url=... or ?demo=true)
+  // Handle URL parameters (?url=... or ?autoload=initial-snapshot)
   useEffect(() => {
     async function checkUrlParams() {
       try {
         const params = new URLSearchParams(window.location.search);
+        
+        // Check ?autoload=initial-snapshot (e.g. from Go launcher or CLI argument)
+        const autoload = params.get('autoload');
+        if (autoload) {
+          showToast(`Autoloading study from launcher...`, 'info');
+          let response: Response | null = null;
+          const endpoints = autoload === 'initial-snapshot'
+            ? ['/api/snapshot', '/initial-snapshot']
+            : [autoload, '/api/snapshot', '/initial-snapshot'];
+
+          for (const ep of endpoints) {
+            try {
+              const res = await fetch(ep);
+              if (res.ok) {
+                // Confirm response is not an HTML fallback page
+                const contentType = res.headers.get('content-type') || '';
+                if (!contentType.includes('text/html')) {
+                  response = res;
+                  break;
+                }
+              }
+            } catch {
+              // continue to next endpoint
+            }
+          }
+
+          if (response && response.ok) {
+            const arrayBuffer = await response.arrayBuffer();
+            const parsed = await decompressViewerData(arrayBuffer);
+            
+            // Extract filename from Content-Disposition if present
+            let filename = 'initial_study.slr-viewer';
+            const disposition = response.headers.get('content-disposition');
+            if (disposition && disposition.includes('filename=')) {
+              const match = disposition.match(/filename="?([^";]+)"?/);
+              if (match && match[1]) filename = match[1].trim();
+            }
+
+            const created = await StorageService.createSession(filename, parsed);
+            await loadSessions();
+            if (created.id) await switchSession(created.id, 'insight-export-rigor');
+            showToast(`Successfully loaded ${created.projectName} from launcher`, 'success');
+            
+            // Clean URL query parameter to prevent re-importing on browser refresh
+            if (typeof window !== 'undefined' && window.history?.replaceState) {
+              window.history.replaceState({}, '', window.location.pathname);
+            }
+            return;
+          }
+        }
+
+        // Check ?url=...
         const remoteUrl = params.get('url');
         if (remoteUrl) {
           showToast(`Fetching dataset from remote URL...`, 'info');
@@ -122,6 +180,11 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
           await loadSessions();
           if (created.id) await switchSession(created.id, 'insight-export-rigor');
           showToast(`Successfully loaded ${created.projectName} from URL`, 'success');
+          
+          // Clean URL query parameter to prevent re-importing on browser refresh
+          if (typeof window !== 'undefined' && window.history?.replaceState) {
+            window.history.replaceState({}, '', window.location.pathname);
+          }
           return;
         }
       } catch (err: any) {
@@ -131,6 +194,39 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
       loadSessions();
     }
     checkUrlParams();
+  }, []);
+
+  // Heartbeat ping & shutdown beacon for Go micro-server launcher auto-shutdown
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!window.location.protocol.startsWith('http')) return;
+
+    const ping = () => {
+      fetch('/api/heartbeat', { method: 'POST' }).catch(() => {});
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        ping();
+      }
+    };
+
+    const handleUnload = () => {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon('/api/shutdown');
+      }
+    };
+
+    ping();
+    const interval = setInterval(ping, 5000);
+    document.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('beforeunload', handleUnload);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('beforeunload', handleUnload);
+    };
   }, []);
 
   const importSnapshot = useCallback(async (file: File): Promise<SessionRecord> => {
@@ -204,6 +300,7 @@ export function ViewerProvider({ children }: { children: React.ReactNode }) {
     activeSession,
     activeTab,
     setActiveTab,
+    clearActiveSession,
     loadSessions,
     switchSession,
     importSnapshot,

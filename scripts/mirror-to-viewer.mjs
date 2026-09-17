@@ -171,12 +171,54 @@ copyFile(
   path.join(viewerDir, 'src/components/scientific-rigor/BlindedAdjudicationPanel.tsx')
 );
 
-// 6. Mirror Public Static Assets (Fonts)
-console.log('\n[6/6] Mirroring Public Static Fonts (Zero CDN Offline Assets)...');
-copyDir(
-  path.join(ideDir, 'public/fonts'),
-  path.join(viewerDir, 'public/fonts')
-);
+// 6. Mirror Public Static Assets (Selective Font Optimization)
+console.log('\n[6/6] Mirroring Optimized WOFF2 Fonts (Zero CDN Offline Assets)...');
+const allowedFonts = [
+  'cmu-serif-500-roman.woff2',
+  'cmu-serif-500-italic.woff2',
+  'cmu-serif-700-roman.woff2',
+  'cmu-serif-700-italic.woff2',
+  'stix-two-text-400-normal.woff2',
+  'stix-two-text-700-normal.woff2',
+  'eb-garamond-400-normal.woff2',
+  'eb-garamond-700-normal.woff2',
+  'carlito-400-normal.woff2',
+  'carlito-700-normal.woff2',
+  'roboto-400-normal.woff2',
+  'roboto-700-normal.woff2',
+];
+
+const srcFontDir = path.join(ideDir, 'public/fonts');
+const destFontDir = path.join(viewerDir, 'public/fonts');
+ensureDir(destFontDir);
+
+// Copy allowed fonts
+for (const font of allowedFonts) {
+  const src = path.join(srcFontDir, font);
+  const dest = path.join(destFontDir, font);
+  if (fs.existsSync(src)) {
+    fs.copyFileSync(src, dest);
+    console.log(`  ✓ Mirrored core font: ${font}`);
+  } else {
+    console.warn(`  ⚠️ Font missing in source: ${font}`);
+  }
+}
+
+// Prune any unallowed fonts in destination directory
+if (fs.existsSync(destFontDir)) {
+  const existingFiles = fs.readdirSync(destFontDir);
+  for (const file of existingFiles) {
+    if (!allowedFonts.includes(file)) {
+      const filePath = path.join(destFontDir, file);
+      try {
+        fs.unlinkSync(filePath);
+        console.log(`  🗑️ Pruned unreferenced font: ${file}`);
+      } catch (err) {
+        console.warn(`  ⚠️ Failed to prune ${file}:`, err);
+      }
+    }
+  }
+}
 
 console.log('\n✨ Code Mirroring Complete! All shared components, services, and offline assets are synchronized.\n');
 

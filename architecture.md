@@ -97,3 +97,19 @@ To enable seamless multi-device collaboration on local area networks (LAN / Wi-F
    - The Next.js backend detects available LAN IPv4 addresses using `os.networkInterfaces()` and serves them via `GET /api/network-info`.
    - The Global Settings Modal provides an interactive **Network & Interfaces** tab to switch between **All Interfaces (`0.0.0.0`)** and **Localhost Only (`127.0.0.1`)**, view one-click copyable LAN access URLs (e.g. `http://192.168.1.50:3000`), and customize port allocations.
 
+---
+
+## 5. Standalone Single-File Distributions & Executable Architecture
+
+To enable friction-free, zero-dependency distribution to peer reviewers, research collaborators, and replication packages without requiring Node.js or local package installation:
+
+1. **Zero-Dependency Single-File HTML Distribution**:
+   - `slr-viewer` and `inter-rater` are compiled via Vite + `vite-plugin-singlefile` into monolithic, self-contained `.html` bundles (`slr-viewer-v<version>.html`, `inter-rater-v<version>.html`) housed in `dist-standalone/`.
+   - **Offline Font Inlining**: The 12 core publication fonts (`.woff2`) are converted into inline Base64 Data URIs (`data:font/woff2;charset=utf-8;base64,...`) during bundling, eliminating any external network dependencies or missing font HTTP requests.
+   - **Hybrid Storage Engine**: In environments where browser storage policies block IndexedDB (such as `file:///` origins in certain enterprise browsers), a lazy-initialized dual storage engine automatically fails over to `InMemorySessionStore`, preventing DOMException errors and UI freezing.
+
+2. **Standalone Go Micro-Server Launcher (`launcher/`)**:
+   - A lightweight, cross-platform Go executable embeds the compiled SPA assets via `embed.FS`.
+   - **Dynamic Loopback Binding**: Listens on `127.0.0.1:0` to allocate a random available port, preventing port collisions.
+   - **Preloaded Snapshot & CLI Support**: Supports loading a `.slr-viewer` snapshot via CLI argument (`./slr-viewer paper_snapshot.slr-viewer`) served via `/api/snapshot` and `/initial-snapshot`.
+   - **Lifecycle Management**: Automatically launches the OS default browser and uses a resilient 60-second heartbeat combined with a `/api/shutdown` beacon (`navigator.sendBeacon`) to cleanly terminate the background process when all tabs close.

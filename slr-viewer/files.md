@@ -26,9 +26,11 @@ This document serves as a comprehensive index of every file within the `slr-view
 | File Path | Architectural Layer | Function & Purpose |
 | :--- | :--- | :--- |
 | `src/main.tsx` | Bootstrap / Entrypoint | React 19 root bootstrap mounting `ViewerProvider` and `App` with global style imports. |
-| `src/App.tsx` | Shell / Layout | Primary application layout shell, top navigation bar, active session banner, dynamic view routing, and global search/filter bar. |
-| `src/StorageService.ts` | Persistence / DAO | Dexie.js IndexedDB client managing local snapshot persistence, session CRUD, and multi-session isolation with typed `SessionRecord` interface. |
-| `src/context/ViewerContext.tsx` | State Provider | React context provider managing active session, loaded datasets, UI view switches, toasts, and URL parameter auto-loading (`?url=...`). |
+| `src/App.tsx` | Shell / Layout | Primary application layout shell with top navigation bar, active session routing, dynamic study switching, and onboarding dropzone. |
+| `src/StorageService.ts` | Persistence / Hybrid Engine | Hybrid storage adapter providing lazy Dexie.js initialization with in-memory fallback (`InMemorySessionStore`) when IndexedDB is blocked under `file:///` protocols. |
+| `src/context/ViewerContext.tsx` | State Provider | React context provider managing active session, loaded datasets, UI view switches, toasts, URL parameter auto-loading (`?url=...`, `?autoload=initial-snapshot`), and launcher heartbeat ping. |
+| `src/components/common/Header.tsx` | Navigation / Controls | Dedicated top navigation bar header featuring active study metadata, `[Switch Study]` switcher, `[Import Snapshot]` trigger, search bar, and action buttons. |
+| `src/components/import/SnapshotDropzone.tsx` | Ingestion / Onboarding | Full-screen drag-and-drop landing onboarding dropzone when no review session is loaded, with immediate file validation, error modal triggers, and recent studies picker. |
 | `src/vite-env.d.ts` | Type Declarations | Ambient TypeScript definitions for Vite client environment. |
 
 ---

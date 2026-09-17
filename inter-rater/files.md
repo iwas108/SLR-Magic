@@ -30,7 +30,7 @@ This document serves as a comprehensive index of every file within the `inter-ra
 | `App.jsx` | Routing / Shell | Root application routing wrapper coordinating global theme states and view rendering switches. |
 | `App.css` | Styling | Global application CSS styling definitions and CSS variables for light/dark themes. |
 | `index.css` | Styling | Base CSS entrypoint importing Tailwind CSS v4 `@import "tailwindcss"`, platform HSL CSS theme tokens, and `@theme` mappings. |
-| `StorageService.js` | Database / Services | Direct interface wrapping IndexedDB (via Dexie) for local storage, CRUD actions, session creation, paper validation, and export generation. |
+| `StorageService.js` | Database / Hybrid Engine | Hybrid storage adapter wrapping IndexedDB (via Dexie) with lazy initialization and `InMemorySessionStore` fallback when IndexedDB is blocked under `file:///` protocols, handling CRUD actions, session creation, and export generation. |
 | `lib/slrCompression.js` | Compression / Utility | Native Web Streams compression and decompression utility using `CompressionStream` and `DecompressionStream` with automatic GZIP magic byte detection and plain JSON fallback. |
 | `lib/services/ecosystem-data.js` | Services / Domain Data | Master metadata dictionary for all SLR Magic ecosystem modules, technical stacks, capabilities, review lifecycle steps, and dynamic URL port resolver. |
 

@@ -2,6 +2,31 @@
 
 All notable changes, refactoring milestones, and feature additions to `slr-viewer/` are documented in this log.
 
+## [#034] [2026-09-17] - Zero-Dependency Standalone Single-File Distribution & Dynamic Importer UX
+
+### Standalone Distribution Architecture & Reusability
+- **Selective Font Asset Optimization (`scripts/mirror-to-viewer.mjs` & `src/index.css`)**:
+  - Pruned 68 unreferenced font variants from `slr-viewer/public/fonts/`, retaining only the 12 core `.woff2` font files.
+  - Reduced font payload footprint from ~20.3 MB to ~1.05 MB (a 95% reduction).
+  - Updated `index.css` `@font-face` declarations to strictly reference `.woff2` fonts, removing legacy `.ttf` fallbacks.
+- **Hybrid Storage Engine with InMemory Fallback (`src/StorageService.ts`)**:
+  - Implemented lazy `getDb()` initialization with Dexie exception guard to protect against `SecurityError` under `file:///` protocols in Firefox/Safari.
+  - Implemented `InMemorySessionStore` providing complete session CRUD functionality in memory when browser IndexedDB is unavailable or blocked.
+- **Dynamic Importer UX & Study Switcher (`src/components/import/SnapshotDropzone.tsx` & `src/components/common/Header.tsx`)**:
+  - Added clean full-screen drag-and-drop landing onboarding dropzone when no review session is loaded, ensuring zero hardcoded study data is baked into standalone builds.
+  - Integrated `[Switch Study]` button in the top header enabling reviewers to seamlessly switch between reviews or load new datasets.
+  - Implemented `?autoload=initial-snapshot` URL parameter support in `ViewerContext.tsx` for automated snapshot loading when launched via native Go executable or CLI.
+  - Added periodic `/api/heartbeat` ping (every 5s) for automatic launcher termination upon browser tab closure.
+- **Single-File Bundling & Auto-Builder (`vite.config.ts` & `package.json`)**:
+  - Integrated `vite-plugin-singlefile` under conditional `mode === 'singlefile'` bundling.
+  - Injected dynamic version metadata tag `<meta name="slr-viewer-version">` into HTML `<head>`.
+  - Added `build:singlefile` and `build:standalone` scripts producing self-contained ~3.88 MB single-file HTML distributions.
+- **Verification**:
+  - `npm --prefix slr-viewer run typecheck`: Passed with 0 errors.
+  - `npm run build:standalone:viewer`: Successfully generated `dist-standalone/slr-viewer.html` and SHA256 checksum.
+
+---
+
 ## [#033] [2026-09-15] - app-script Deprecation Cleanup & Dynamic SPA Route Resolution
 
 ### Architecture & Routing Upgrades

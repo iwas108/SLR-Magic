@@ -1,12 +1,14 @@
 {
   "name": "inter-rater",
   "private": true,
-  "version": "0.0.14",
+  "version": "0.0.16",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "prebuild": "node scripts/bump-version.js",
     "build": "vite build",
+    "build:singlefile": "npm run prebuild && vite build --mode singlefile",
+    "build:standalone": "npm run build:singlefile && node ../scripts/build-standalone-dist.mjs --module=inter-rater",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -30,6 +32,7 @@
     "globals": "^17.5.0",
     "sass": "^1.99.0",
     "tailwindcss": "^4.0.0",
-    "vite": "^8.0.16"
+    "vite": "^8.0.16",
+    "vite-plugin-singlefile": "^2.3.3"
   }
 }
