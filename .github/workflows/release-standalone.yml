@@ -84,25 +84,26 @@ jobs:
           cp -r slr-viewer/public/fonts/* launcher/dist/fonts/ || true
 
       - name: Compile Native Go Launchers (Windows, Linux, macOS)
+        working-directory: launcher
         env:
           VIEWER_VER: ${{ steps.vars.outputs.viewer_version }}
           BUILD_TIME: ${{ steps.vars.outputs.build_time }}
         run: |
           LDFLAGS="-s -w -X main.AppVersion=v${VIEWER_VER} -X main.BuildTime=${BUILD_TIME}"
-          mkdir -p dist-standalone
+          mkdir -p ../dist-standalone
 
           echo "Compiling Windows AMD64..."
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist-standalone/slr-viewer-windows-amd64.exe ./launcher
-          cp dist-standalone/slr-viewer-windows-amd64.exe dist-standalone/slr-viewer.exe
+          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../dist-standalone/slr-viewer-windows-amd64.exe .
+          cp ../dist-standalone/slr-viewer-windows-amd64.exe ../dist-standalone/slr-viewer.exe
 
           echo "Compiling Linux AMD64..."
-          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist-standalone/slr-viewer-linux-amd64 ./launcher
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../dist-standalone/slr-viewer-linux-amd64 .
 
           echo "Compiling macOS Darwin AMD64 (Intel)..."
-          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist-standalone/slr-viewer-darwin-amd64 ./launcher
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../dist-standalone/slr-viewer-darwin-amd64 .
 
           echo "Compiling macOS Darwin ARM64 (Apple Silicon)..."
-          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o dist-standalone/slr-viewer-darwin-arm64 ./launcher
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=0 go build -ldflags="${LDFLAGS}" -o ../dist-standalone/slr-viewer-darwin-arm64 .
 
       - name: Generate Checksums (SHA256SUMS.txt)
         run: |
